@@ -36,6 +36,7 @@
 import numpy as np
 from time import time
 from decorator import decorator
+from contextlib import contextmanager
 
 
 class Timer(object):
@@ -144,6 +145,14 @@ class Timer(object):
         if not cls._timers:
             return
         cls._timers = {}
+
+
+@contextmanager
+def profiling(t, name):
+    timer = Timer("%s-%s" % (t, name))
+    timer.start()
+    yield
+    timer.stop()
 
 
 class profile(Timer):
