@@ -62,6 +62,7 @@ void %(wrapper_name)s(int start, int end,
   %(const_inits)s;
   %(map_decl)s
   %(vec_decs)s;
+  LIKWID_MARKER_START("%(kernel_name)s");
   for ( int n = start; n < end; n++ ) {
     int i = %(index_expr)s;
     %(vec_inits)s;
@@ -80,6 +81,7 @@ void %(wrapper_name)s(int start, int end,
     %(apply_offset)s;
     %(extr_loop_close)s
   }
+  LIKWID_MARKER_STOP("%(kernel_name)s");
 }
 """
 
