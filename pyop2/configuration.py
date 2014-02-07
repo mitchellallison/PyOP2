@@ -65,6 +65,7 @@ class Configuration(object):
         "simd_isa": ("PYOP2_SIMD_ISA", str, ""),
         "debug": ("PYOP2_DEBUG", int, 0),
         "log_level": ("PYOP2_LOG_LEVEL", (str, int), "WARNING"),
+        "likwid": ("PYOP2_LIKWID_PROFILING", bool, False),
         "lazy_evaluation": ("PYOP2_LAZY", bool, True),
         "lazy_max_trace_length": ("PYOP2_MAX_TRACE_LENGTH", int, 0),
         "dump_gencode": ("PYOP2_DUMP_GENCODE", bool, False),

@@ -45,6 +45,7 @@ from utils import validate_type
 from exceptions import MatTypeError, DatTypeError
 from ir.ast_plan import init_ir
 from versioning import modifies_arguments
+import likwid
 
 __all__ = ['configuration', 'READ', 'WRITE', 'RW', 'INC', 'MIN', 'MAX',
            'i', 'debug', 'info', 'warning', 'error', 'critical', 'initialised',
@@ -109,12 +110,16 @@ def init(**kwargs):
         MPI = backends._BackendSelector._backend.MPI  # noqa: backend override
 
     init_ir(configuration['simd_isa'], configuration['compiler'])
+    if configuration['likwid']:
+        likwid.initialise()
 
 
 @atexit.register
 @collective
 def exit():
     """Exit OP2 and clean up"""
+    if configuration['likwid']:
+        likwid.finalise()
     configuration.reset()
 
     if backends.get_backend() != 'pyop2.void':
