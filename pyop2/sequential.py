@@ -56,6 +56,7 @@ void wrap_%(kernel_name)s__(PyObject *_start, PyObject *_end,
   %(off_inits)s;
   %(layer_arg_init)s;
   %(map_decl)s
+  LIKWID_MARKER_START("%(kernel_name)s");
   for ( int n = start; n < end; n++ ) {
     int i = %(index_expr)s;
     %(vec_inits)s;
@@ -74,6 +75,7 @@ void wrap_%(kernel_name)s__(PyObject *_start, PyObject *_end,
     %(apply_offset)s;
     %(extr_loop_close)s
   }
+  LIKWID_MARKER_STOP("%(kernel_name)s");
 }
 """
 
