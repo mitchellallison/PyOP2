@@ -87,6 +87,10 @@ class Timer(object):
         self._timer = timer
         self._start = None
         self._timings = []
+        self._volume = None
+
+    def data_volume(self, vol):
+        self._volume = vol
 
     def start(self):
         """Start the timer."""
@@ -139,12 +143,27 @@ class Timer(object):
         """Average time spent per recorded event."""
         return np.average(self._timings)
 
+    @property
+    def dv(self):
+        if self._volume:
+            return self.ncalls * self._volume / (1024.0 * 1024.0)
+        return 0.0
+
+    @property
+    def bw(self):
+        return self.dv / self.total
+
+    @property
+    def sd(self):
+        """Standard deviation of recorded event time."""
+        return np.std(self._timings)
+
     @classmethod
     def summary(cls, filename=None):
         """Print a summary table for all timers or write CSV to filename."""
         if not cls._timers:
             return
-        column_heads = ("Timer", "Total time", "Calls", "Average time")
+        column_heads = ("Timer", "Total time", "Calls", "Average time", "Standard Deviation", "Tot DV (MB)", "Tot BW (MB/s)")
         if isinstance(filename, str):
             import csv
             with open(filename, 'wb') as f:
@@ -163,13 +182,22 @@ class Timer(object):
                             for t in cls._timers.values()])
             averagecol = max([len(column_heads[3])] + [len('%g' % t.average)
                              for t in cls._timers.values()])
-            fmt = "%%%ds | %%%ds | %%%ds | %%%ds" % (
-                namecol, totalcol, ncallscol, averagecol)
+            sdcol = max([len(column_heads[4])] + [len('%g' % t.sd)
+                        for t in cls._timers.values()])
+            dvcol = max([len(column_heads[5])] + [len('%g' % t.dv)
+                        for t in cls._timers.values()])
+            bwcol = max([len(column_heads[6])] + [len('%g' % t.bw)
+                        for t in cls._timers.values()])
+
+            fmt = "%%%ds | %%%ds | %%%ds | %%%ds | %%%ds | %%%ds | %%%ds" % (
+                namecol, totalcol, ncallscol, averagecol, sdcol, dvcol, bwcol)
             print fmt % column_heads
-            fmt = "%%%ds | %%%dg | %%%dd | %%%dg" % (
-                namecol, totalcol, ncallscol, averagecol)
-            for t in sorted(cls._timers.values(), key=lambda k: k.name):
-                print fmt % (t.name, t.total, t.ncalls, t.average)
+            fmt = "%%%ds | %%%dg | %%%dd | %%%dg | %%%dg | %%%dg | %%%dg" % (
+                namecol, totalcol, ncallscol, averagecol, sdcol, dvcol, bwcol)
+            keys = sorted(cls._timers.keys(), key=lambda k: k[-6:])
+            for k in keys:
+                t = cls._timers[k]
+                print fmt % (t.name, t.total, t.ncalls, t.average, t.sd, t.dv, t.bw)
 
     @classmethod
     def get_timers(cls):
@@ -190,6 +218,11 @@ def profiling(t, name):
     timer.start()
     yield
     timer.stop()
+
+
+def add_data_volume(t, name, vol):
+    timer = Timer("%s-%s" % (t, name))
+    timer.data_volume(vol)
 
 
 class timed_function(Timer):
