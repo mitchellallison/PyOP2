@@ -622,6 +622,7 @@ class JITModule(base.JITModule):
                 system_headers=self._system_headers,
                 library_dirs=[d + '/lib' for d in get_petsc_dir()],
                 libraries=['petsc'] + self._libraries,
+                lddargs=['-Wl,-rpath,%s/lib' % d for d in get_petsc_dir()],
                 sources=["mat_utils.cxx"],
                 modulename=self._kernel.name if configuration["debug"] else None)
         if cc:
