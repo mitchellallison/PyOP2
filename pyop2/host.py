@@ -610,6 +610,8 @@ class JITModule(base.JITModule):
             extra_cppargs = [vect_flag]
         else:
             extra_cppargs = []
+        if configuration["likwid"]:
+            extra_cppargs.append("-DLIKWID_PERFMON")
         with progress(INFO, 'Compiling kernel %s', self._kernel.name):
             self._fun = inline_with_numpy(
                 code_to_compile, additional_declarations=kernel_code,
@@ -619,9 +621,9 @@ class JITModule(base.JITModule):
                               self._kernel._include_dirs),
                 source_directory=os.path.dirname(os.path.abspath(__file__)),
                 wrap_headers=["mat_utils.h"],
-                system_headers=self._system_headers,
+                system_headers=self._system_headers + ['likwid.h'],
                 library_dirs=[d + '/lib' for d in get_petsc_dir()],
-                libraries=['petsc'] + self._libraries,
+                libraries=['petsc'] + self._libraries + ['likwid'],
                 lddargs=['-Wl,-rpath,%s/lib' % d for d in get_petsc_dir()],
                 sources=["mat_utils.cxx"],
                 modulename=self._kernel.name if configuration["debug"] else None)
