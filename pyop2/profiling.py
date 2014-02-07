@@ -184,6 +184,14 @@ class Timer(object):
         cls._timers = {}
 
 
+@contextmanager
+def profiling(t, name):
+    timer = Timer("%s-%s" % (t, name))
+    timer.start()
+    yield
+    timer.stop()
+
+
 class timed_function(Timer):
 
     """Decorator to time function calls."""
