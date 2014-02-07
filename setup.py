@@ -49,6 +49,7 @@ try:
     plan_sources = ['pyop2/plan.pyx']
     sparsity_sources = ['pyop2/sparsity.pyx']
     computeind_sources = ['pyop2/computeind.pyx']
+    likwid_sources = ['pyop2/likwid.pyx']
 
 # Else we require the Cython-compiled .c file to be present and use that
 # Note: file is not in revision control but needs to be included in distributions
@@ -141,4 +142,9 @@ setup(name='PyOP2',
       ext_modules=[NumpyExtension('pyop2.plan', plan_sources),
                    NumpyExtension('pyop2.sparsity', sparsity_sources,
                                   include_dirs=['pyop2'], language="c++"),
-                   NumpyExtension('pyop2.computeind', computeind_sources)])
+                   NumpyExtension('pyop2.computeind', computeind_sources),
+                   Extension('pyop2.likwid', likwid_sources,
+                             include_dirs=['/usr/local/include'],
+                             library_dirs=['/usr/local/lib'],
+                             libraries=['likwid'],
+                             runtime_library_dirs=['/usr/local/lib'])])
