@@ -50,6 +50,7 @@ from backends import _make_object
 from mpi import MPI, _MPI, _check_comm, collective
 from sparsity import build_sparsity
 from version import __version__ as version
+from profiling import profiling, add_data_volume
 
 from ir.ast_base import Node
 
@@ -3209,17 +3210,20 @@ class ParLoop(LazyComputation):
     @collective
     def compute(self):
         """Executes the kernel over all members of the iteration space."""
-        self.halo_exchange_begin()
-        self.maybe_set_dat_dirty()
-        self._compute_if_not_empty(self.it_space.iterset.core_part)
-        self.halo_exchange_end()
-        self._compute_if_not_empty(self.it_space.iterset.owned_part)
-        self.reduction_begin()
-        if self.needs_exec_halo:
-            self._compute_if_not_empty(self.it_space.iterset.exec_part)
-        self.reduction_end()
-        self.maybe_set_halo_update_needed()
-        self.assemble()
+        with profiling('base', 'compute-%s-%s' % (self.kernel.name, self.kernel._md5)):
+            self.halo_exchange_begin()
+            self.maybe_set_dat_dirty()
+            self._compute_if_not_empty(self.it_space.iterset.core_part)
+            self.halo_exchange_end()
+            self._compute_if_not_empty(self.it_space.iterset.owned_part)
+            self.reduction_begin()
+            if self.needs_exec_halo:
+                self._compute_if_not_empty(self.it_space.iterset.exec_part)
+            self.reduction_end()
+            self.maybe_set_halo_update_needed()
+            self.assemble()
+        add_data_volume('base', 'compute-%s-%s' % (self.kernel.name, self.kernel._md5),
+                        self._data_volume)
 
     def _compute_if_not_empty(self, part):
         if part.size > 0:
@@ -3457,4 +3461,8 @@ class Solver(object):
 
 @collective
 def par_loop(kernel, it_space, *args):
-    return _make_object('ParLoop', kernel, it_space, *args).enqueue()
+    with profiling('base', 'par_loop-%s-%s' % (kernel.name, kernel._md5)):
+        pl = _make_object('ParLoop', kernel, it_space, *args)
+        add_data_volume('base', 'par_loop-%s-%s' % (kernel.name, kernel._md5),
+                        pl._data_volume)
+        pl._run()
