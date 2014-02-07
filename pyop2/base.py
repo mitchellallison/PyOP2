@@ -3717,6 +3717,14 @@ class ParLoop(LazyComputation):
                         arg2.indirect_position = arg1.indirect_position
 
         self._it_space = self.build_itspace(iterset)
+        # Data volume computation
+        vol = 0
+        for arg in args:
+            if arg._is_dat:
+                vol += sum(s.size * s.cdim for s in arg.data.dataset) * arg.dtype.itemsize
+            if arg._is_mat:
+                vol += (arg.data.sparsity.onz + arg.data.sparsity.nz) * arg.dtype.itemsize
+        self._data_volume = vol
 
     def _run(self):
         return self.compute()
