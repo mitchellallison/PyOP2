@@ -46,6 +46,7 @@ from utils import validate_type
 from exceptions import MatTypeError, DatTypeError
 from coffee.ast_plan import init_coffee
 from versioning import modifies_arguments
+import likwid
 
 __all__ = ['configuration', 'READ', 'WRITE', 'RW', 'INC', 'MIN', 'MAX',
            'ON_BOTTOM', 'ON_TOP', 'ON_INTERIOR_FACETS', 'ALL',
@@ -110,8 +111,8 @@ def init(**kwargs):
         global MPI
         MPI = backends._BackendSelector._backend.MPI  # noqa: backend override
 
-    init_coffee(configuration['simd_isa'], configuration['compiler'],
-                configuration['blas'])
+    if configuration['likwid']:
+        likwid.initialise()
 
 
 @atexit.register
@@ -127,6 +128,8 @@ def exit():
         from profiling import summary
         print '**** PyOP2 timings summary ****'
         summary()
+    if configuration['likwid']:
+        likwid.finalise()
     configuration.reset()
 
     if backends.get_backend() != 'pyop2.void':
