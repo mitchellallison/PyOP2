@@ -45,7 +45,6 @@ from utils import validate_type
 from exceptions import MatTypeError, DatTypeError
 from ir.ast_plan import init_ir
 from versioning import modifies_arguments
-import likwid
 
 __all__ = ['configuration', 'READ', 'WRITE', 'RW', 'INC', 'MIN', 'MAX',
            'i', 'debug', 'info', 'warning', 'error', 'critical', 'initialised',
@@ -111,6 +110,7 @@ def init(**kwargs):
 
     init_ir(configuration['simd_isa'], configuration['compiler'])
     if configuration['likwid']:
+        import likwid
         likwid.initialise()
 
 
@@ -119,6 +119,7 @@ def init(**kwargs):
 def exit():
     """Exit OP2 and clean up"""
     if configuration['likwid']:
+        import likwid
         likwid.finalise()
     configuration.reset()
 
