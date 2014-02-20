@@ -51,7 +51,7 @@ from utils import as_tuple
 class JITModule(host.JITModule):
 
     _wrapper = """
-void %(wrapper_name)s(int start, int end,
+double %(wrapper_name)s(int start, int end,
                       %(ssinds_arg)s
                       %(wrapper_args)s
                       %(const_args)s
@@ -62,6 +62,8 @@ void %(wrapper_name)s(int start, int end,
   %(const_inits)s;
   %(map_decl)s
   %(vec_decs)s;
+  long s1, s2;
+  s1 = stamp();
   LIKWID_MARKER_START("%(kernel_name)s");
   for ( int n = start; n < end; n++ ) {
     int i = %(index_expr)s;
@@ -82,6 +84,8 @@ void %(wrapper_name)s(int start, int end,
     %(extr_loop_close)s
   }
   LIKWID_MARKER_STOP("%(kernel_name)s");
+  s2 = stamp();
+  return (s2 - s1) / 1e9;
 }
 """
 
@@ -153,7 +157,7 @@ class ParLoop(host.ParLoop):
         # Must call fun on all processes since this may trigger
         # compilation.
         with timed_region("ParLoop kernel"):
-            fun(*self._jit_args, argtypes=self._argtypes, restype=None)
+            return fun(*self._jit_args, argtypes=self._argtypes, restype=None)
 
 
 def _setup():

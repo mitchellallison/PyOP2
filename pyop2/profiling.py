@@ -88,9 +88,14 @@ class Timer(object):
         self._start = None
         self._timings = []
         self._volume = None
+        self._c_timings = []
 
     def data_volume(self, vol):
         self._volume = vol
+
+    def c_time(self, c_time):
+        """Time value from the kernel wrapper."""
+        self._c_timings.append(c_time)
 
     def start(self):
         """Start the timer."""
@@ -139,9 +144,19 @@ class Timer(object):
         return sum(self._timings)
 
     @property
+    def c_time_total(self):
+        """Total time spent for all recorded C timed events."""
+        return sum(self._c_timings)
+
+    @property
     def average(self):
         """Average time spent per recorded event."""
         return np.average(self._timings)
+
+    @property
+    def c_time_average(self):
+        """Average time spent per recorded event."""
+        return np.average(self._c_timings)
 
     @property
     def dv(self):
@@ -158,12 +173,17 @@ class Timer(object):
         """Standard deviation of recorded event time."""
         return np.std(self._timings)
 
+    @property
+    def c_time_sd(self):
+        """Standard deviation of recorded event C time."""
+        return np.std(self._c_timings)
+
     @classmethod
     def summary(cls, filename=None):
         """Print a summary table for all timers or write CSV to filename."""
         if not cls._timers:
             return
-        column_heads = ("Timer", "Total time", "Calls", "Average time", "Standard Deviation", "Tot DV (MB)", "Tot BW (MB/s)")
+        column_heads = ("Timer", "Total time", "Calls", "Average time", "Standard Deviation", "Tot C time", "Avg C time", "Tot DV (MB)", "Tot BW (MB/s)")
         if isinstance(filename, str):
             import csv
             with open(filename, 'wb') as f:
@@ -184,20 +204,24 @@ class Timer(object):
                              for t in cls._timers.values()])
             sdcol = max([len(column_heads[4])] + [len('%g' % t.sd)
                         for t in cls._timers.values()])
-            dvcol = max([len(column_heads[5])] + [len('%g' % t.dv)
+            c_totalcol = max([len(column_heads[5])] + [len('%g' % t.c_time_total)
+                             for t in cls._timers.values()])
+            c_averagecol = max([len(column_heads[6])] + [len('%g' % t.c_time_average)
+                               for t in cls._timers.values()])
+            dvcol = max([len(column_heads[7])] + [len('%g' % t.dv)
                         for t in cls._timers.values()])
-            bwcol = max([len(column_heads[6])] + [len('%g' % t.bw)
+            bwcol = max([len(column_heads[8])] + [len('%g' % t.bw)
                         for t in cls._timers.values()])
 
-            fmt = "%%%ds | %%%ds | %%%ds | %%%ds | %%%ds | %%%ds | %%%ds" % (
-                namecol, totalcol, ncallscol, averagecol, sdcol, dvcol, bwcol)
+            fmt = "%%%ds | %%%ds | %%%ds | %%%ds | %%%ds |  %%%ds | %%%ds | %%%ds | %%%ds" % (
+                namecol, totalcol, ncallscol, averagecol, sdcol, c_totalcol, c_averagecol, dvcol, bwcol)
             print fmt % column_heads
-            fmt = "%%%ds | %%%dg | %%%dd | %%%dg | %%%dg | %%%dg | %%%dg" % (
-                namecol, totalcol, ncallscol, averagecol, sdcol, dvcol, bwcol)
+            fmt = "%%%ds | %%%dg | %%%dd | %%%dg | %%%dg | %%%dg | %%%dg | %%%dg | %%%dg" % (
+                namecol, totalcol, ncallscol, averagecol, sdcol, c_totalcol, c_averagecol, dvcol, bwcol)
             keys = sorted(cls._timers.keys(), key=lambda k: k[-6:])
             for k in keys:
                 t = cls._timers[k]
-                print fmt % (t.name, t.total, t.ncalls, t.average, t.sd, t.dv, t.bw)
+                print fmt % (t.name, t.total, t.ncalls, t.average, t.sd, t.c_time_total, t.c_time_average, t.dv, t.bw)
 
     @classmethod
     def get_timers(cls):
@@ -223,6 +247,11 @@ def profiling(t, name):
 def add_data_volume(t, name, vol):
     timer = Timer("%s-%s" % (t, name))
     timer.data_volume(vol)
+
+
+def add_c_time(t, name, time):
+    timer = Timer("%s-%s" % (t, name))
+    timer.c_time(time)
 
 
 class timed_function(Timer):

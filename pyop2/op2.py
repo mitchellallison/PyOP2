@@ -46,7 +46,7 @@ from utils import validate_type
 from exceptions import MatTypeError, DatTypeError
 from coffee.ast_plan import init_coffee
 from versioning import modifies_arguments
-from profiling import profiling
+from profiling import profiling, add_c_time
 
 __all__ = ['configuration', 'READ', 'WRITE', 'RW', 'INC', 'MIN', 'MAX',
            'ON_BOTTOM', 'ON_TOP', 'ON_INTERIOR_FACETS', 'ALL',
