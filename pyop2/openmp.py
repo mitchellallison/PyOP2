@@ -137,19 +137,21 @@ class JITModule(host.JITModule):
     _system_headers = ['#include <omp.h>']
 
     _wrapper = """
-void %(wrapper_name)s(int boffset,
-                      int nblocks,
-                      int *blkmap,
-                      int *offset,
-                      int *nelems,
-                      %(ssinds_arg)s
-                      %(wrapper_args)s
-                      %(const_args)s
-                      %(off_args)s
-                      %(layer_arg)s) {
+double %(wrapper_name)s(int boffset,
+                        int nblocks,
+                        int *blkmap,
+                        int *offset,
+                        int *nelems,
+                        %(ssinds_arg)s
+                        %(wrapper_args)s
+                        %(const_args)s
+                        %(off_args)s
+                        %(layer_arg)s) {
   %(user_code)s
   %(wrapper_decs)s;
   %(const_inits)s;
+  long s1, s2;
+  s1 = stamp();
   #pragma omp parallel shared(boffset, nblocks, nelems, blkmap)
   {
     %(map_decl)s
@@ -186,6 +188,8 @@ void %(wrapper_name)s(int boffset,
     }
     %(interm_globals_writeback)s;
   }
+  s2 = stamp();
+  return (s2 - s1) / 1e9;
 }
 """
 
@@ -284,13 +288,15 @@ class ParLoop(device.ParLoop, host.ParLoop):
             fun = fun.compile(argtypes=self._argtypes, restype=None)
 
             boffset = 0
+            time = 0
             for c in range(plan.ncolors):
                 nblocks = plan.ncolblk[c]
                 self._jit_args[0] = boffset
                 self._jit_args[1] = nblocks
                 with timed_region("ParLoop kernel"):
-                    fun(*self._jit_args)
+                    time += fun(*self._jit_args)
                 boffset += nblocks
+                return time
         else:
             # Fake types for arguments so that ctypes doesn't complain
             self._argtypes[2] = ndpointer(np.int32, shape=(0, ))
