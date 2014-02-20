@@ -169,6 +169,10 @@ class Timer(object):
         return self.dv / self.total
 
     @property
+    def c_bw(self):
+        return self.dv / self.c_time_total if self.c_time_total else 0.0
+
+    @property
     def sd(self):
         """Standard deviation of recorded event time."""
         return np.std(self._timings)
@@ -183,7 +187,8 @@ class Timer(object):
         """Print a summary table for all timers or write CSV to filename."""
         if not cls._timers:
             return
-        column_heads = ("Timer", "Total time", "Calls", "Average time", "Standard Deviation", "Tot C time", "Avg C time", "Tot DV (MB)", "Tot BW (MB/s)")
+        column_heads = ("Timer", "Total time", "Calls", "Average time", "Standard Deviation", "Tot C time", "Avg C time",
+                        "Tot DV (MB)", "Tot BW (MB/s)", "Tot C BW (MB/s)")
         if isinstance(filename, str):
             import csv
             with open(filename, 'wb') as f:
@@ -212,16 +217,18 @@ class Timer(object):
                         for t in cls._timers.values()])
             bwcol = max([len(column_heads[8])] + [len('%g' % t.bw)
                         for t in cls._timers.values()])
+            c_bwcol = max([len(column_heads[8])] + [len('%g' % t.c_bw)
+                          for t in cls._timers.values()])
 
-            fmt = "%%%ds | %%%ds | %%%ds | %%%ds | %%%ds |  %%%ds | %%%ds | %%%ds | %%%ds" % (
-                namecol, totalcol, ncallscol, averagecol, sdcol, c_totalcol, c_averagecol, dvcol, bwcol)
+            fmt = "%%%ds | %%%ds | %%%ds | %%%ds | %%%ds |  %%%ds | %%%ds | %%%ds | %%%ds | %%%ds" % (
+                namecol, totalcol, ncallscol, averagecol, sdcol, c_totalcol, c_averagecol, dvcol, bwcol, c_bwcol)
             print fmt % column_heads
-            fmt = "%%%ds | %%%dg | %%%dd | %%%dg | %%%dg | %%%dg | %%%dg | %%%dg | %%%dg" % (
-                namecol, totalcol, ncallscol, averagecol, sdcol, c_totalcol, c_averagecol, dvcol, bwcol)
+            fmt = "%%%ds | %%%dg | %%%dd | %%%dg | %%%dg |  %%%dg | %%%dg | %%%dg | %%%dg | %%%dg" % (
+                namecol, totalcol, ncallscol, averagecol, sdcol, c_totalcol, c_averagecol, dvcol, bwcol, c_bwcol)
             keys = sorted(cls._timers.keys(), key=lambda k: k[-6:])
             for k in keys:
                 t = cls._timers[k]
-                print fmt % (t.name, t.total, t.ncalls, t.average, t.sd, t.c_time_total, t.c_time_average, t.dv, t.bw)
+                print fmt % (t.name, t.total, t.ncalls, t.average, t.sd, t.c_time_total, t.c_time_average, t.dv, t.bw, t.c_bw)
 
     @classmethod
     def get_timers(cls):
