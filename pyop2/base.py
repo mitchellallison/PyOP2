@@ -3540,6 +3540,10 @@ class Kernel(Cached):
         self._initialized = True
 
     @property
+    def _md5(self):
+        return md5(self.code + self.name).hexdigest()[:6]
+
+    @property
     def name(self):
         """Kernel name, must match the kernel function name in the code."""
         return self._name
