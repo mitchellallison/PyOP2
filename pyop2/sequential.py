@@ -64,7 +64,9 @@ double %(wrapper_name)s(int start, int end,
   %(vec_decs)s;
   long s1, s2;
   s1 = stamp();
+# ifdef LIKWID_PERFMON
   LIKWID_MARKER_START("%(kernel_name)s");
+#endif
   for ( int n = start; n < end; n++ ) {
     int i = %(index_expr)s;
     %(vec_inits)s;
@@ -83,7 +85,9 @@ double %(wrapper_name)s(int start, int end,
     %(apply_offset)s;
     %(extr_loop_close)s
   }
+# ifdef LIKWID_PERFMON
   LIKWID_MARKER_STOP("%(kernel_name)s");
+#endif
   s2 = stamp();
   return (s2 - s1) / 1e9;
 }
