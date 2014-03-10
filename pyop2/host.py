@@ -707,6 +707,7 @@ class JITModule(base.JITModule):
         _const_decs = '\n'.join([const._format_declaration()
                                 for const in Const._definitions()]) + '\n'
 
+        extra_headers = ['likwid.h'] if configuration["likwid"] else []
         code_to_compile = """
         #include <mat_utils.h>
         #include <stdbool.h>
@@ -721,7 +722,7 @@ class JITModule(base.JITModule):
         """ % {'consts': _const_decs, 'kernel': kernel_code,
                'wrapper': code_to_compile,
                'externc_close': externc_close,
-               'sys_headers': '\n'.join(self._kernel._headers + ['likwid.h'])}
+               'sys_headers': '\n'.join(self._kernel._headers + extra_headers)}
 
         self._dump_generated_code(code_to_compile)
         if configuration["debug"]:
@@ -733,11 +734,12 @@ class JITModule(base.JITModule):
                   ["-I%s" % os.path.abspath(os.path.dirname(__file__))]
         if compiler:
             cppargs += [compiler[coffee.ast_plan.intrinsics['inst_set']]]
-        if configuration["likwid"]:
-            cppargs.append("-DLIKWID_PERFMON")
         ldargs = ["-L%s/lib" % d for d in get_petsc_dir()] + \
                  ["-Wl,-rpath,%s/lib" % d for d in get_petsc_dir()] + \
-                 ["-lpetsc", "-lm", "-lrt"] + self._libraries + ['-llikwid']
+                 ["-lpetsc", "-lm", "-lrt"] + self._libraries
+        if configuration["likwid"]:
+            cppargs.append("-DLIKWID_PERFMON")
+            ldargs.append("-llikwid")
         if self._kernel._applied_blas:
             blas_dir = blas['dir']
             if blas_dir:
