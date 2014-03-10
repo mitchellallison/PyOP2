@@ -46,7 +46,7 @@ from utils import validate_type
 from exceptions import MatTypeError, DatTypeError
 from coffee.ast_plan import init_coffee
 from versioning import modifies_arguments
-from profiling import profiling, add_c_time
+from profiling import profiling
 
 __all__ = ['configuration', 'READ', 'WRITE', 'RW', 'INC', 'MIN', 'MAX',
            'ON_BOTTOM', 'ON_TOP', 'ON_INTERIOR_FACETS', 'ALL',
@@ -274,8 +274,7 @@ def par_loop(kernel, iterset, *args, **kwargs):
     ``elem_node`` for the relevant member of ``elements`` will be
     passed to the kernel as a vector.
     """
-    with profiling('op2', 'par_loop-%s-%s' % (kernel.name, kernel._md5)):
-        return backends._BackendSelector._backend.par_loop(kernel, iterset, *args, **kwargs)
+    return backends._BackendSelector._backend.par_loop(kernel, iterset, *args, **kwargs)
 
 
 @collective

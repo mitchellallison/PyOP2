@@ -3739,21 +3739,21 @@ class ParLoop(LazyComputation):
     @profile
     def compute(self):
         """Executes the kernel over all members of the iteration space."""
-        with profiling('base', 'compute-%s-%s' % (self.kernel.name, self.kernel._md5)):
+        with profiling('base', '%s-%s' % (self.kernel.name, self.kernel._md5)):
             self.halo_exchange_begin()
             self.maybe_set_dat_dirty()
-            t_ = self._compute(self.it_space.iterset.core_part)
+            self._compute(self.it_space.iterset.core_part)
             self.halo_exchange_end()
-            t_ += self._compute(self.it_space.iterset.owned_part)
+            self._compute(self.it_space.iterset.owned_part)
             self.reduction_begin()
             if self.needs_exec_halo:
-                t_ += self._compute(self.it_space.iterset.exec_part)
+                self._compute(self.it_space.iterset.exec_part)
             self.reduction_end()
             self.maybe_set_halo_update_needed()
-        add_c_time('base', 'compute-%s-%s' % (self.kernel.name, self.kernel._md5), t_)
+        add_c_time('base', 'compute-%s-%s' % (self.kernel.name, self.kernel._md5),
+                   self._compute(part))
         add_data_volume('base', 'compute-%s-%s' % (self.kernel.name, self.kernel._md5),
                         self._data_volume)
-        return t_
 
     @collective
     def _compute(self, part):
@@ -4009,12 +4009,8 @@ class Solver(object):
 
 @collective
 def par_loop(kernel, it_space, *args, **kwargs):
-    with profiling('base', 'par_loop-%s-%s' % (kernel.name, kernel._md5)):
-        if isinstance(kernel, types.FunctionType):
-            import pyparloop
-            pl = pyparloop.ParLoop(pyparloop.Kernel(kernel), it_space,
-                                   *args, **kwargs).enqueue()
-        pl = _make_object('ParLoop', kernel, it_space, *args, **kwargs).enqueue()
-        add_data_volume('base', 'par_loop-%s-%s' % (kernel.name, kernel._md5),
-                        pl._data_volume)
-        return pl.enqueue()
+    if isinstance(kernel, types.FunctionType):
+        import pyparloop
+        return pyparloop.ParLoop(pyparloop.Kernel(kernel), it_space,
+                               *args, **kwargs).enqueue()
+    return _make_object('ParLoop', kernel, it_space, *args, **kwargs).enqueue()
