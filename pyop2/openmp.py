@@ -154,6 +154,10 @@ double %(wrapper_name)s(int boffset,
   s1 = stamp();
   #pragma omp parallel shared(boffset, nblocks, nelems, blkmap)
   {
+# ifdef LIKWID_PERFMON
+    LIKWID_MARKER_THREADINIT;
+    LIKWID_MARKER_START("%(kernel_name)s");
+#endif
     %(map_decl)s
     int tid = omp_get_thread_num();
     %(interm_globals_decl)s;
@@ -187,6 +191,9 @@ double %(wrapper_name)s(int boffset,
       }
     }
     %(interm_globals_writeback)s;
+# ifdef LIKWID_PERFMON
+    LIKWID_MARKER_STOP("%(kernel_name)s");
+#endif
   }
   s2 = stamp();
   return (s2 - s1) / 1e9;
