@@ -40,6 +40,7 @@ except ImportError:
     from distutils.extension import Extension
 from glob import glob
 from os import environ as env
+from os.path import exists
 import sys
 import numpy as np
 import petsc4py
@@ -88,7 +89,6 @@ except ImportError:
     computeind_sources = ['pyop2/computeind.c']
     likwid_sources = ['pyop2/likwid.c']
     sources = plan_sources + sparsity_sources + computeind_sources + likwid_sources
-    from os.path import exists
     if not all([exists(f) for f in sources]):
         raise ImportError("Installing from source requires Cython")
 
@@ -128,6 +128,25 @@ class sdist(_sdist):
         _sdist.run(self)
 cmdclass['sdist'] = sdist
 
+ext_modules=[Extension('pyop2.plan', plan_sources,
+                       include_dirs=numpy_includes),
+             Extension('pyop2.sparsity', sparsity_sources,
+                       include_dirs=['pyop2'] + includes, language="c++",
+                       libraries=["petsc"],
+                       extra_link_args=["-L%s/lib" % d for d in petsc_dirs] +
+                       ["-Wl,-rpath,%s/lib" % d for d in petsc_dirs]),
+             Extension('pyop2.computeind', computeind_sources,
+                       include_dirs=numpy_includes)]
+
+# Test for availability of likwid
+# FIXME: Better not use a hard-coded path, maybe read $LIKWID_DIR
+if exists('/usr/local/include/likwid.h'):
+    ext_modules.append(Extension('pyop2.likwid', likwid_sources,
+                                 include_dirs=['/usr/local/include'],
+                                 library_dirs=['/usr/local/lib'],
+                                 libraries=['likwid'],
+                                 runtime_library_dirs=['/usr/local/lib']))
+
 setup(name='PyOP2',
       version=versioneer.get_version(),
       description='Framework for performance-portable parallel computations on unstructured meshes',
@@ -153,17 +172,4 @@ setup(name='PyOP2',
           'pyop2': ['assets/*', 'mat_utils.*', '*.h', '*.pxd', '*.pyx']},
       scripts=glob('scripts/*'),
       cmdclass=cmdclass,
-      ext_modules=[Extension('pyop2.plan', plan_sources,
-                             include_dirs=numpy_includes),
-                   Extension('pyop2.sparsity', sparsity_sources,
-                             include_dirs=['pyop2'] + includes, language="c++",
-                             libraries=["petsc"],
-                             extra_link_args=["-L%s/lib" % d for d in petsc_dirs] +
-                             ["-Wl,-rpath,%s/lib" % d for d in petsc_dirs]),
-                   Extension('pyop2.computeind', computeind_sources,
-                             include_dirs=numpy_includes),
-                   Extension('pyop2.likwid', likwid_sources,
-                             include_dirs=['/usr/local/include'],
-                             library_dirs=['/usr/local/lib'],
-                             libraries=['likwid'],
-                             runtime_library_dirs=['/usr/local/lib'])])
+      ext_modules=ext_modules)
