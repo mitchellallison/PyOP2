@@ -674,34 +674,24 @@ class JITModule(base.JITModule):
           return _stamp;
         }
         """
+        kernel_code = """
+        #define _POSIX_C_SOURCE 199309L
+        %(timer)s
+        %(header)s
+        %(namespace)s
+        %(externc_open)s
+        %(code)s
+        """ % {'code': self._kernel.code,
+               'externc_open': externc_open,
+               'namespace': blas_namespace,
+               'header': headers,
+               'timer': self.timer_function}
         if any(arg._is_soa for arg in self._args):
             kernel_code = """
-            #define _POSIX_C_SOURCE 199309L
             #define OP2_STRIDE(a, idx) a[idx]
-            %(timer)s
-            %(header)s
-            %(namespace)s
-            %(externc_open)s
-            %(code)s
+            %s
             #undef OP2_STRIDE
-            """ % {'code': self._kernel.code,
-                   'externc_open': externc_open,
-                   'namespace': blas_namespace,
-                   'header': headers,
-                   'timer': self.timer_function}
-        else:
-            kernel_code = """
-            #define _POSIX_C_SOURCE 199309L
-            %(timer)s
-            %(header)s
-            %(namespace)s
-            %(externc_open)s
-            %(code)s
-            """ % {'code': self._kernel.code,
-                   'externc_open': externc_open,
-                   'namespace': blas_namespace,
-                   'header': headers,
-                   'timer': self.timer_function}
+            """ % kernel_code
         code_to_compile = strip(dedent(self._wrapper) % self.generate_code())
 
         _const_decs = '\n'.join([const._format_declaration()
