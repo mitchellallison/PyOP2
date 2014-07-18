@@ -2897,6 +2897,8 @@ class SparsityMap(Map, ObjectCached):
     the appropriate sparsity pattern."""
 
     def __new__(cls, map, iteration_region):
+        if map is None:
+            return None
         if isinstance(map, MixedMap):
             return MixedMap([SparsityMap(m, iteration_region) for m in map])
         return super(SparsityMap, cls).__new__(cls, map, iteration_region)
