@@ -3081,10 +3081,13 @@ class Sparsity(ObjectCached):
         self._rmaps, self._cmaps = zip(*maps)
         self._dsets = dsets
 
-        # All rmaps and cmaps have the same data set - just use the first.
-        self._nrows = self._rmaps[0].toset.size
-        self._ncols = self._cmaps[0].toset.size
-        self._dims = (self._dsets[0].cdim, self._dsets[1].cdim)
+        if dsets[0] is None or dsets[1] is None:
+            pass
+        else:
+            # All rmaps and cmaps have the same data set - just use the first.
+            self._nrows = self._rmaps[0].toset.size
+            self._ncols = self._cmaps[0].toset.size
+            self._dims = (self._dsets[0].cdim, self._dsets[1].cdim)
 
         self._name = name or "sparsity_%d" % Sparsity._globalcount
         Sparsity._globalcount += 1
@@ -3104,6 +3107,10 @@ class Sparsity(ObjectCached):
             self._o_nnz = tuple(s._o_nnz for s in self)
             self._d_nz = sum(s._d_nz for s in self)
             self._o_nz = sum(s._o_nz for s in self)
+        elif dsets[0] is None or dsets[1] is None:
+            # Where the sparsity maps either from or to a Global, we
+            # don't really have any sparsity structure.
+            self._blocks = [[self]]
         else:
             with timed_region("Build sparsity"):
                 build_sparsity(self, parallel=MPI.parallel)
@@ -3233,7 +3240,8 @@ class Sparsity(ObjectCached):
     @property
     def shape(self):
         """Number of block rows and columns."""
-        return len(self._dsets[0]), len(self._dsets[1])
+        return (len(self._dsets[0] or [1]),
+                len(self._dsets[1] or [1]))
 
     @property
     def nrows(self):
