@@ -3578,6 +3578,8 @@ class Kernel(Cached):
         the generated kernel wrapper code (optional, defaults to
         empty)
     :param cpp: Is the kernel actually C++ rather than C?
+    :param lib_dirs: Additional search path for libraries used by the kernel.
+    :param libs: Additional libraries used by the kernel
 
     Consider the case of initialising a :class:`~pyop2.Dat` with seeded random
     values in the interval 0 to 1. The corresponding :class:`~pyop2.Kernel` is
@@ -3598,7 +3600,7 @@ class Kernel(Cached):
     @classmethod
     @validate_type(('name', str, NameTypeError))
     def _cache_key(cls, code, name, opts={}, include_dirs=[], headers=[],
-                   user_code="", cpp=False):
+                   user_code="", cpp=False, libs=[], lib_dirs= []):
         # Both code and name are relevant since there might be multiple kernels
         # extracting different functions from the same code
         # Also include the PyOP2 version, since the Kernel class might change
@@ -3607,7 +3609,8 @@ class Kernel(Cached):
         if isinstance(code, Node):
             code = code.gencode()
         return md5(str(hash(code)) + name + str(opts) + str(include_dirs) +
-                   str(headers) + version + str(cpp)).hexdigest()
+                   str(headers) + version + str(cpp) +
+                   str(lib_dirs) + str(libs)).hexdigest()
 
     def _ast_to_c(self, ast, opts={}):
         """Transform an Abstract Syntax Tree representing the kernel into a
@@ -3618,12 +3621,15 @@ class Kernel(Cached):
         return ast
 
     def __init__(self, code, name, opts={}, include_dirs=[], headers=[],
-                 user_code="", cpp=False):
+                 user_code="", cpp=False, libs=[], lib_dirs=[]):
         # Protect against re-initialization when retrieved from cache
         if self._initialized:
             return
         self._name = name or "kernel_%d" % Kernel._globalcount
+        print 'HERE -----'
         self._cpp = cpp
+        self._libs = libs
+        self._lib_dirs = lib_dirs
         Kernel._globalcount += 1
         # Record used optimisations
         self._opts = opts
