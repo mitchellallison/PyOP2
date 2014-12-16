@@ -713,8 +713,6 @@ class JITModule(base.JITModule):
 
         libs = self._kernel._libs
         lib_dirs = self._kernel._lib_dirs
-        #libs = ["lapack","lapacke"]
-        #lib_dirs = []
 
         extension = "c"
         cppargs = ["-I%s/include" % d for d in get_petsc_dir()] + \
