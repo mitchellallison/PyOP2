@@ -3896,6 +3896,13 @@ class ParLoop(LazyComputation):
                 if arg._is_dat and arg.access not in [INC, READ, WRITE]:
                     raise RuntimeError("Iteration over a LocalSet does not make sense for RW args")
 
+        coord_occurences = 0
+        for i, arg1 in enumerate(args):
+            if hasattr(arg1, "_name") and arg1._dat.name is "Coordinates":
+                coord_occurences += 1
+                if coord_occurences > 1:
+                    arg1._indirect_position = len(self._actual_args)
+
         self._it_space = self.build_itspace(iterset)
 
         # Attach semantic information to the kernel's AST
