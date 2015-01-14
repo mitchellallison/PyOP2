@@ -3884,7 +3884,7 @@ class ParLoop(LazyComputation):
                     # We have to check for identity here (we really
                     # want these to be the same thing, not just look
                     # the same)
-                    if arg2.data is arg1.data and arg2.map is arg1.map:
+                    if arg2.data is arg1.data and arg2.map is arg1.map and arg1 != arg2:
                         arg2.indirect_position = arg1.indirect_position
 
         if self.is_direct and self._only_local:
@@ -3896,12 +3896,12 @@ class ParLoop(LazyComputation):
                 if arg._is_dat and arg.access not in [INC, READ, WRITE]:
                     raise RuntimeError("Iteration over a LocalSet does not make sense for RW args")
 
-        coord_occurences = 0
-        for i, arg1 in enumerate(args):
-            if hasattr(arg1, "_name") and arg1._dat.name is "Coordinates":
-                coord_occurences += 1
-                if coord_occurences > 1:
-                    arg1._indirect_position = len(self._actual_args)
+        #coord_occurences = 0
+        #for i, arg1 in enumerate(args):
+        #    if hasattr(arg1, "_name") and arg1._dat.name is "Coordinates":
+        #        coord_occurences += 1
+        #        if coord_occurences > 1:
+        #            arg1._indirect_position = len(self._actual_args)
 
         self._it_space = self.build_itspace(iterset)
 
