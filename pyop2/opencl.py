@@ -658,11 +658,12 @@ class ParLoop(device.ParLoop):
         conf['subset'] = isinstance(part.set, Subset)
 
         if self._is_indirect:
+            layers = self.layer_arg[0] if self.is_layered else 0
             _plan = Plan(part,
                          *self._unwound_args,
                          partition_size=conf['partition_size'],
                          matrix_coloring=self._requires_matrix_coloring,
-                         layers=self.it_space.layers)
+                         layers=layers)
             conf['local_memory_size'] = _plan.nshared
             conf['ninds'] = _plan.ninds
             conf['work_group_size'] = min(_max_work_group_size,
