@@ -270,6 +270,9 @@ void {{ parloop._stub_name }}(
 {%- if(parloop._requires_coloring) %}
   for (i_1 = get_local_id(0); i_1 < active_threads_count_ceiling; i_1 += get_local_size(0)) {
     color_2 = -1;
+    {%- if(parloop.is_layered) %}
+    for (int layer = 0; layer < {{ parloop.layer_arg[0] }}; layer++) {
+    {% endif %}
     if (i_1 < active_threads_count) {
       {%- for arg in parloop._all_inc_indirect_dat_args %}
       {{ staged_arg_local_variable_zeroing(arg) | indent(6) }}
@@ -300,10 +303,19 @@ void {{ parloop._stub_name }}(
       }
       barrier(CLK_LOCAL_MEM_FENCE);
     }
+  {%- if(parloop.is_layered) %}
+  }
+  {%- endif %}
   }
 {%- else %}
   for (i_1 = get_local_id(0); i_1 < active_threads_count; i_1 += get_local_size(0)) {
+  {%- if(parloop.is_layered) %}
+    for (int layer = 0; layer < {{ parloop.layer_arg[0] }}; layer++) {
+  {%- endif %}
     {{ kernel_call() | indent(6) }}
+  {%- if(parloop.is_layered) %}
+    }
+  {%- endif %}
   }
 {%- endif %}
 
