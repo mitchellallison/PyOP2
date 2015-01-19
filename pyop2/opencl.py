@@ -661,7 +661,8 @@ class ParLoop(device.ParLoop):
             _plan = Plan(part,
                          *self._unwound_args,
                          partition_size=conf['partition_size'],
-                         matrix_coloring=self._requires_matrix_coloring)
+                         matrix_coloring=self._requires_matrix_coloring,
+                         layers=self.it_space.layers)
             conf['local_memory_size'] = _plan.nshared
             conf['ninds'] = _plan.ninds
             conf['work_group_size'] = min(_max_work_group_size,
@@ -730,7 +731,6 @@ class ParLoop(device.ParLoop):
                 blocks_per_grid = int(_plan.ncolblk[i])
                 threads_per_block = min(_max_work_group_size, conf['partition_size'])
                 thread_count = threads_per_block * blocks_per_grid
-
                 args[-1] = np.int32(block_offset)
                 fun(int(thread_count), int(threads_per_block), *args)
                 block_offset += blocks_per_grid
