@@ -71,6 +71,7 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
 {%- endmacro -%}
 
 {%- macro color_reduction_vec_map(arg) -%}
+int loc;
 for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
   {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
     {%- if(arg._flatten) %}
@@ -78,12 +79,23 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
     {%- else %}
     {%- set offs = 'i_2' %}
     {%- endif %}
-    {%- if(arg._is_INC) %}
-    {{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
-    {%- elif(arg._is_MIN) %}
-    {{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
-    {%- elif(arg._is_MAX) %}
-    {{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}] = max({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {%- if(parloop.is_layered) %}
+      loc = i_2 + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }};
+      {%- if(arg._is_INC) %}
+      {{ arg._shared_name }}[{{offs}} + (loc / 2) * {{parloop.layer_arg[0]}} + (loc % 2) + layer] += {{ arg._local_name(idx=i) }}[i_2];
+      {%- elif(arg._is_MIN) %}
+      {{ arg._shared_name }}[{{offs}} + (loc / 2) * {{parloop.layer_arg[0]}} + (loc % 2) + layer] = min({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+      {%- elif(arg._is_MAX) %}
+      {{ arg._shared_name }}[{{offs}} + (loc / 2) * {{parloop.layer_arg[0]}} + (loc % 2) + layer] = max({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+      {%- endif %}
+    {%- else %}
+      {%- if(arg._is_INC) %}
+      {{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
+      {%- elif(arg._is_MIN) %}
+      {{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+      {%- elif(arg._is_MAX) %}
+      {{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}] = max({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+      {%- endif %}
     {%- endif %}
   {%- endfor %}
 }
@@ -91,8 +103,12 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 
 {%- macro work_group_reduction(arg) -%}
   for (i_1 = get_local_id(0); i_1 < {{ arg._size_name }} * {{ arg.data.cdim }}; i_1 += get_local_size(0)) {
-  {{ arg.name }}[i_1 % {{ arg.data.cdim }} + {{ arg._map_name }}[i_1 / {{ arg.data.cdim }}] * {{ arg.data.cdim }}] += {{ arg._shared_name }}[i_1];
-}
+      {%- if(parloop.is_layered) %}
+      {{ arg.name }}[i_1 % {{ arg.data.cdim }} + i_1] += {{ arg._shared_name }}[i_1];
+      {%- else %}
+      {{ arg.name }}[i_1 % {{ arg.data.cdim }} + {{ arg._map_name}}[i_1 / {{ arg.data.cdim }}] * {{ arg.data.cdim }}] += {{ arg._shared_name }}[i_1];
+      {%- endif %}
+  }
 {%- endmacro -%}
 
 {%- macro global_reduction_local_zeroing(arg) -%}
@@ -232,7 +248,11 @@ void {{ parloop._stub_name }}(
     offset_b_abs = p_offset[block_id];
     offset_b = offset_b_abs - set_offset;
     {%- for arg in parloop._unique_indirect_dat_args -%}
+    {%- if(parloop.is_layered) %}
+    {{ arg._size_name }} = (p_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}] / 2) * {{parloop.layer_arg[0]}};
+    {%- else %}
     {{ arg._size_name }} = p_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}];
+    {%- endif %}
     {{ arg._map_name }} = &p_ind_map[{{arg._which_indirect}} * set_size] + p_ind_offsets[{{loop.index0}} + block_id * {{loop.length}}];
 {%- endfor %}
 
@@ -271,7 +291,7 @@ void {{ parloop._stub_name }}(
   for (i_1 = get_local_id(0); i_1 < active_threads_count_ceiling; i_1 += get_local_size(0)) {
     color_2 = -1;
     {%- if(parloop.is_layered) %}
-    for (int layer = 0; layer < {{ parloop.layer_arg[0] }}; layer++) {
+    for (int layer = 0; layer < {{ parloop.layer_arg[0] }} - 1; layer ++) {
     {% endif %}
     if (i_1 < active_threads_count) {
       {%- for arg in parloop._all_inc_indirect_dat_args %}

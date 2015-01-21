@@ -658,7 +658,7 @@ class ParLoop(device.ParLoop):
         conf['subset'] = isinstance(part.set, Subset)
 
         if self._is_indirect:
-            layers = self.layer_arg[0] if self.is_layered else 0
+            layers = self.layer_arg[0] if self.is_layered else 1
             _plan = Plan(part,
                          *self._unwound_args,
                          partition_size=conf['partition_size'],

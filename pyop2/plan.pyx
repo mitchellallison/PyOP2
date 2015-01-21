@@ -93,7 +93,7 @@ cdef class _Plan:
 
     def __init__(self, iset, *args, partition_size=1,
                  matrix_coloring=False, staging=True, thread_coloring=True,
-                 layers=0, **kwargs):
+                 layers=1, **kwargs):
         assert partition_size > 0, "partition size must be strictly positive"
 
         self._compute_partition_info(iset, partition_size, matrix_coloring, args)
@@ -214,7 +214,7 @@ cdef class _Plan:
                 dat, map = k
                 # shared memory needed for extruded sets (accounting for shared points)
                 nshared_per_cell = align(sizes[(dat,map,pi)] * dat.dtype.itemsize * dat.cdim)
-                nshareds[pi] += nshared_per_cell + ((layers * nshared_per_cell) / 2)
+                nshareds[pi] += layers * (nshared_per_cell / 2)
         self._nshared = max(nshareds)
 
     def _compute_coloring(self, iset, partition_size, matrix_coloring, thread_coloring, args):
