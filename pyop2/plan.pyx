@@ -199,6 +199,8 @@ cdef class _Plan:
 
                     inv = numpy.array(inv)
 
+                    sizes[dat, map, pi] = cum_interval_len[-1] 
+
 
                 for i, ind in enumerate(sorted(ii)):
                     locs[dat, map, ind, pi] = inv[i::l]
@@ -253,8 +255,7 @@ cdef class _Plan:
             for k in d.iterkeys():
                 dat, map = k
                 # shared memory needed for extruded sets (accounting for shared points)
-                nshared_per_cell = align(sizes[(dat,map,pi)] * dat.dtype.itemsize * dat.cdim)
-                nshareds[pi] += layers * (nshared_per_cell / 2)
+                nshareds[pi] = align(sizes[(dat,map,pi)] * dat.dtype.itemsize * dat.cdim)
         self._nshared = max(nshareds)
 
     def _compute_coloring(self, iset, partition_size, matrix_coloring, thread_coloring, args):
