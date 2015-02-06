@@ -158,11 +158,51 @@ cdef class _Plan:
                 else:
                     staged_values = map.values_with_halo[start:end, ii]
 
+                print "staged_values: {}".format(staged_values)
+
                 inds[dat, map, pi], inv = numpy.unique(staged_values, return_inverse=True)
                 sizes[dat, map, pi] = len(inds[dat, map, pi])
 
+                print "ii: {}, inds: {}".format(ii, inds[dat, map, pi])
+
+                # For extruded sets, the loc map needs to be altered to account
+                # for the stored layers. As opposed to generating all of the data,
+                # a more space-efficient algorithm involves calculating the contiguous
+                # ranges of columns as intervals, storing the lengths of these
+                # intervals and creating an inverse map from these values.
+                if layers > 1:
+                    intervals = []
+                    cum_interval_len = [0]
+                    for i, ind in enumerate(inds[dat, map, pi]):
+                        if len(intervals) > 0 and intervals[-1][1] > ind:
+                            # ind is within the interval, so extend the interval
+                            # to account for the layers from ind.
+                            intervals[-1][1] = ind + (layers - 1)
+                        else:
+                            # ind is outside the interval, so create a new
+                            # interval. Append an element to the cumulative
+                            # length.
+                            intervals.append([ind, ind + (layers - 1)])
+                            cum_interval_len.append(0)
+                        cum_interval_len[-1] = cum_interval_len[-2] + (intervals[-1][1] - intervals[-1][0] + 1)
+
+                    print intervals
+                    print cum_interval_len
+
+                    inv = []
+                    for _, arr in enumerate(staged_values):
+                        for _, val in enumerate(arr):
+                            for i, interval in enumerate(intervals):
+                                if val < interval[1]:
+                                    inv.append(cum_interval_len[i] + val - interval[0])
+                                    break
+
+                    inv = numpy.array(inv)
+
+
                 for i, ind in enumerate(sorted(ii)):
                     locs[dat, map, ind, pi] = inv[i::l]
+                    print "i: {}, ind: {}, inv: {}, locs[i, ind]: {}".format(i, ind, inv, locs[dat, map, ind, pi])
 
         def ind_iter():
             for dat,map in d.iterkeys():
