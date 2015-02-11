@@ -90,8 +90,16 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 {%- endmacro -%}
 
 {%- macro work_group_reduction(arg) -%}
-  for (i_1 = get_local_id(0); i_1 < {{ arg._size_name }} * {{ arg.data.cdim }}; i_1 += get_local_size(0)) {
-  {{ arg.name }}[i_1 % {{ arg.data.cdim }} + {{ arg._map_name }}[i_1 / {{ arg.data.cdim }}] * {{ arg.data.cdim }}] += {{ arg._shared_name }}[i_1];
+for (i_1 = get_global_id(0); i_1 < {{ arg._size_name}}_base; i_1 += get_local_size(0)) {
+  int layer_count = p_base_layer_count[i_1];
+  int shared_offset = 0;
+  for (int i_2 = 0; i_2 < i_1; i_2++) {
+    shared_offset += p_base_layer_count[i_2];
+  }
+  int map_index = {{ arg._map_name }}[i_1 / {{ arg.data.cdim }}];
+  for (int layer = 0; layer < layer_count; layer++) {
+    {{arg.name}}[i_1 % {{ arg.data.cdim }} + (map_index + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[shared_offset + layer];
+  }
 }
 {%- endmacro -%}
 
@@ -138,6 +146,9 @@ void {{ parloop._stub_name }}(
   __global int* _ssinds,
   {% endif -%}
   __global int* p_ind_map,
+  {%- if parloop.is_layered %}
+  __global int* p_base_layer_count,
+  {%- endif %}
   __global short *p_loc_map,
   __global int* p_ind_sizes,
   __global int* p_ind_offsets,
@@ -205,6 +216,9 @@ void {{ parloop._stub_name }}(
 {%- for arg in parloop._unique_indirect_dat_args %}
   __global int* __local {{ arg._map_name }};
   __local int {{ arg._size_name }};
+{%- if parloop.is_layered %}
+  __local int {{ arg._size_name }}_base;
+{%- endif %}
   __local {{ arg.data._cl_type }}* __local {{ arg._shared_name }};
 {%- endfor %}
 {% for arg  in parloop._all_non_inc_vec_map_args %}
@@ -232,7 +246,12 @@ void {{ parloop._stub_name }}(
     offset_b_abs = p_offset[block_id];
     offset_b = offset_b_abs - set_offset;
     {%- for arg in parloop._unique_indirect_dat_args -%}
-    {{ arg._size_name }} = p_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}];
+    {%- if parloop.is_layered %}
+      {{ arg._size_name }} = p_ind_sizes[{{loop.index0}} + (block_id * {{ loop.length }} * 2)];
+      {{ arg._size_name }}_base = p_ind_sizes[{{loop.index0}} + (block_id * {{ loop.length }} * 2) + 1];
+    {%- else %}
+      {{ arg._size_name }} = p_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}];
+    {%- endif %}
     {{ arg._map_name }} = &p_ind_map[{{arg._which_indirect}} * set_size] + p_ind_offsets[{{loop.index0}} + block_id * {{loop.length}}];
 {%- endfor %}
 

@@ -76,6 +76,7 @@ cdef class _Plan:
 
     cdef numpy.ndarray _nelems
     cdef numpy.ndarray _ind_map
+    cdef numpy.ndarray _base_layer_count
     cdef numpy.ndarray _loc_map
     cdef numpy.ndarray _ind_sizes
     cdef numpy.ndarray _nindirect
@@ -144,6 +145,8 @@ cdef class _Plan:
         locs = {}   # Offset of staged data in shared memory by dat via map in
                     # given partition
         sizes = {}  # # of indices references by dat via map in given partition
+        intervals = [] # Intervals used in extruded set calculations
+        cum_interval_len = []
 
         for pi in range(self._nblocks):
             start = self._offset[pi]
@@ -158,20 +161,17 @@ cdef class _Plan:
                 else:
                     staged_values = map.values_with_halo[start:end, ii]
 
-                print "staged_values: {}".format(staged_values)
-
                 inds[dat, map, pi], inv = numpy.unique(staged_values, return_inverse=True)
-                sizes[dat, map, pi] = len(inds[dat, map, pi])
 
-                print "ii: {}, inds: {}".format(ii, inds[dat, map, pi])
+                if layers == 1:
+                    sizes[dat, map, pi] = len(inds[dat, map, pi])
 
                 # For extruded sets, the loc map needs to be altered to account
                 # for the stored layers. As opposed to generating all of the data,
                 # a more space-efficient algorithm involves calculating the contiguous
                 # ranges of columns as intervals, storing the lengths of these
                 # intervals and creating an inverse map from these values.
-                if layers > 1:
-                    intervals = []
+                elif layers > 1:
                     cum_interval_len = [0]
                     for i, ind in enumerate(inds[dat, map, pi]):
                         if len(intervals) > 0 and intervals[-1][1] > ind:
@@ -199,12 +199,11 @@ cdef class _Plan:
 
                     inv = numpy.array(inv)
 
-                    sizes[dat, map, pi] = cum_interval_len[-1] 
-
+                    sizes[dat, map, pi] = cum_interval_len[-1]
+                    sizes[dat, map, pi + self._nblocks] = len(inds[dat, map, pi])
 
                 for i, ind in enumerate(sorted(ii)):
                     locs[dat, map, ind, pi] = inv[i::l]
-                    print "i: {}, ind: {}, inv: {}, locs[i, ind]: {}".format(i, ind, inv, locs[dat, map, ind, pi])
 
         def ind_iter():
             for dat,map in d.iterkeys():
@@ -212,25 +211,20 @@ cdef class _Plan:
                 for pi in range(self._nblocks):
                     cumsum += len(inds[dat, map, pi])
                     yield inds[dat, map, pi]
-                # creates a padding to conform with op2 plan objects
-                # fills with -1 for debugging
-                # this should be removed and generated code changed
-                # once we switch to python plan only
-                pad = numpy.empty(len(indices[dat, map]) * iset.size - cumsum, dtype=numpy.int32)
-                pad.fill(-1)
-                yield pad
         t = tuple(ind_iter())
         self._ind_map = numpy.concatenate(t) if t else numpy.array([], dtype=numpy.int32)
 
         def size_iter():
             for pi in range(self._nblocks):
                 for dat,map in d.iterkeys():
-                    yield sizes[(dat,map,pi)]
+                    yield sizes[(dat, map, pi)]
+                    if layers > 1:
+                        yield sizes[(dat, map, pi + self._nblocks)]
         self._ind_sizes = numpy.fromiter(size_iter(), dtype=numpy.int32)
 
         def nindirect_iter():
             for dat,map in d.iterkeys():
-                yield sum(sizes[(dat,map,pi)] for pi in range(self._nblocks))
+                    yield sum(sizes[(dat,map,pi)] for pi in range(self._nblocks))
         self._nindirect = numpy.fromiter(nindirect_iter(), dtype=numpy.int32)
 
         locs_t = tuple(locs[dat, map, i, pi].astype(numpy.int16)
@@ -238,6 +232,33 @@ cdef class _Plan:
                        for i in indices[dat, map]
                        for pi in range(self._nblocks))
         self._loc_map = numpy.concatenate(locs_t) if locs_t else numpy.array([], dtype=numpy.int16)
+
+        if layers > 1:
+            # For the staging in/out of the data, we calculate an array
+            # of layer counts to accompany the loc map. For example, the
+            # following combination means that 11 layers should be staged
+            # in from 0 and 0 layers should be staged in from 1 (to account
+            # for overlaps in data).
+            # loc_map:          [0,  1, 11, 12, 22, 23, 33, 34]
+            # base_layer_count  [11, 0, 11, 0,  11, 0,  11, 0]
+            base_layer_count = []
+            curr_interval = 0
+            visited_intervals = [False] * len(intervals)
+            visited_interval_indices = [0] * len(intervals)
+            for i, ind in enumerate(self._ind_map):
+                while ind > intervals[curr_interval][1]:
+                    curr_interval += 1
+                if visited_intervals[curr_interval]:
+                    print "1: ind: {}".format(ind)
+                    base_layer_count.append(0)
+                    base_layer_count[visited_interval_indices[curr_interval]] += ind - intervals[curr_interval][0]
+                else:
+                    print "2: ind: {}".format(ind)
+                    base_layer_count.append(layers)
+                    visited_intervals[curr_interval] = True
+                    visited_interval_indices[curr_interval] = i
+                print "base_layer_count: {}".format(base_layer_count)
+        self._base_layer_count = numpy.array(base_layer_count).astype(numpy.int32) if base_layer_count else numpy.array([], dtype=numpy.int16)
 
         def off_iter():
             _off = dict()
@@ -254,7 +275,6 @@ cdef class _Plan:
         for pi in range(self._nblocks):
             for k in d.iterkeys():
                 dat, map = k
-                # shared memory needed for extruded sets (accounting for shared points)
                 nshareds[pi] = align(sizes[(dat,map,pi)] * dat.dtype.itemsize * dat.cdim)
         self._nshared = max(nshareds)
 
@@ -508,6 +528,12 @@ cdef class _Plan:
         """Array of offsets of staged data in shared memory for each Dat/Map
         pair for each partition (nblocks x nindirect x partition size)."""
         return self._loc_map
+
+    @property
+    def base_layer_count(self):
+        """Array of the number of layers to stage in/out of shared memory,
+        corresponding to the values in the indirection map."""
+        return self._base_layer_count
 
     @property
     def blkmap(self):
