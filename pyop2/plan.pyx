@@ -275,7 +275,7 @@ cdef class _Plan:
         for pi in range(self._nblocks):
             for k in d.iterkeys():
                 dat, map = k
-                nshareds[pi] = align(sizes[(dat,map,pi)] * dat.dtype.itemsize * dat.cdim)
+                nshareds[pi] += align(sizes[(dat,map,pi)] * dat.dtype.itemsize * dat.cdim)
         self._nshared = max(nshareds)
 
     def _compute_coloring(self, iset, partition_size, matrix_coloring, thread_coloring, args):
