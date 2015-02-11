@@ -211,6 +211,13 @@ cdef class _Plan:
                 for pi in range(self._nblocks):
                     cumsum += len(inds[dat, map, pi])
                     yield inds[dat, map, pi]
+                # creates a padding to conform with op2 plan objects
+                # fills with -1 for debugging
+                # this should be removed and generated code changed
+                # once we switch to python plan only
+                pad = numpy.empty(len(indices[dat, map]) * iset.size - cumsum, dtype=numpy.int32)
+                pad.fill(-1)
+                yield pad
         t = tuple(ind_iter())
         self._ind_map = numpy.concatenate(t) if t else numpy.array([], dtype=numpy.int32)
 
@@ -246,6 +253,8 @@ cdef class _Plan:
             visited_intervals = [False] * len(intervals)
             visited_interval_indices = [0] * len(intervals)
             for i, ind in enumerate(self._ind_map):
+                if ind < 0:
+                    break
                 while ind > intervals[curr_interval][1]:
                     curr_interval += 1
                 if visited_intervals[curr_interval]:
