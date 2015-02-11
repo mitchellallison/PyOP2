@@ -734,8 +734,6 @@ class ParLoop(device.ParLoop):
             args.append(_plan.nthrcol.data)
             args.append(_plan.thrcol.data)
 
-            from IPython import embed; embed()
-
             block_offset = 0
             args.append(0)
             for i in range(_plan.ncolors):

@@ -233,6 +233,7 @@ cdef class _Plan:
                        for pi in range(self._nblocks))
         self._loc_map = numpy.concatenate(locs_t) if locs_t else numpy.array([], dtype=numpy.int16)
 
+        base_layer_count = []
         if layers > 1:
             # For the staging in/out of the data, we calculate an array
             # of layer counts to accompany the loc map. For example, the
@@ -241,7 +242,6 @@ cdef class _Plan:
             # for overlaps in data).
             # loc_map:          [0,  1, 11, 12, 22, 23, 33, 34]
             # base_layer_count  [11, 0, 11, 0,  11, 0,  11, 0]
-            base_layer_count = []
             curr_interval = 0
             visited_intervals = [False] * len(intervals)
             visited_interval_indices = [0] * len(intervals)

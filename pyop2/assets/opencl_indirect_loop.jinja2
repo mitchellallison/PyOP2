@@ -90,6 +90,7 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 {%- endmacro -%}
 
 {%- macro work_group_reduction(arg) -%}
+{%- if parloop.is_layered %}
 for (i_1 = get_global_id(0); i_1 < {{ arg._size_name}}_base; i_1 += get_local_size(0)) {
   int layer_count = p_base_layer_count[i_1];
   int shared_offset = 0;
@@ -101,6 +102,11 @@ for (i_1 = get_global_id(0); i_1 < {{ arg._size_name}}_base; i_1 += get_local_si
     {{arg.name}}[i_1 % {{ arg.data.cdim }} + (map_index + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[shared_offset + layer];
   }
 }
+{%- else %}
+for (i_1 = get_local_id(0); i_1 < {{ arg._size_name }} * {{ arg.data.cdim }}; i_1 += get_local_size(0)) {
+  {{ arg.name }}[i_1 % {{ arg.data.cdim }} + {{ arg._map_name }}[i_1 / {{ arg.data.cdim }}] * {{ arg.data.cdim }}] += {{ arg._shared_name }}[i_1];
+}
+{%- endif %}
 {%- endmacro -%}
 
 {%- macro global_reduction_local_zeroing(arg) -%}
