@@ -109,6 +109,14 @@ class Arg(base.Arg):
         return "%s_size" % self.name
 
     @property
+    def _base_layer_offset_name(self):
+        return "%s_base_layer_offset" % self.name
+
+    @property
+    def _base_layer_size_name(self):
+        return "%s_base_layer_size" % self.name
+
+    @property
     def _mat_entry_name(self):
         return "%s_entry" % self.name
 

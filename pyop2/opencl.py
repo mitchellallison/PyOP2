@@ -390,10 +390,10 @@ class Plan(plan.Plan):
         return self._ind_map_array
 
     @property
-    def base_layer_offset(self):
-        if not hasattr(self, '_base_layer_offset_array'):
-            self._base_layer_offset_array = array.to_device(_queue, super(Plan, self).base_layer_offset)
-        return self._base_layer_offset_array
+    def base_layer_offsets(self):
+        if not hasattr(self, '_base_layer_offsets_array'):
+            self._base_layer_offsets_array = array.to_device(_queue, super(Plan, self).base_layer_offsets)
+        return self._base_layer_offsets_array
 
     @property
     def ind_sizes(self):
@@ -724,7 +724,7 @@ class ParLoop(device.ParLoop):
                 args.append(part.set._device_data.data)
             args.append(_plan.ind_map.data)
             if layers > 1:
-                args.append(_plan.base_layer_offset.data)
+                args.append(_plan.base_layer_offsets.data)
             args.append(_plan.loc_map.data)
             args.append(_plan.ind_sizes.data)
             args.append(_plan.ind_offs.data)

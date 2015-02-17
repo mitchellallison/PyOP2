@@ -102,9 +102,9 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 
 {%- macro work_group_reduction(arg) -%}
 {%- if parloop.is_layered %}
-for (i_1 = 0; i_1 < {{ arg._size_name}}_base; i_1++) {
-  int shared_offset = p_base_layer_offset[i_1];
-  int layer_count = p_base_layer_offset[i_1 + 1] - p_base_layer_offset[i_1];
+for (i_1 = 0; i_1 < {{ arg._base_layer_size_name}}; i_1++) {
+  int shared_offset = {{ arg._base_layer_offset_name }}[i_1];
+  volatile int layer_count = {{ arg._base_layer_offset_name }}[i_1 + 1] - {{ arg._base_layer_offset_name }}[i_1];
   int map_index = {{ arg._map_name }}[i_1 / {{ arg.data.cdim }}];
   for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
     {{arg.name}}[i_1 % {{ arg.data.cdim }} + (map_index + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[shared_offset + layer];
@@ -161,7 +161,7 @@ void {{ parloop._stub_name }}(
   {% endif -%}
   __global int* p_ind_map,
   {%- if parloop.is_layered %}
-  __global int* p_base_layer_offset,
+  __global int* p_base_layer_offsets,
   {%- endif %}
   __global short *p_loc_map,
   __global int* p_ind_sizes,
@@ -179,6 +179,7 @@ void {{ parloop._stub_name }}(
   __local int active_threads_count;
 
   int nbytes;
+  int base_layer_index;
   int block_id;
 
   int i_1;
@@ -231,7 +232,8 @@ void {{ parloop._stub_name }}(
   __global int* __local {{ arg._map_name }};
   __local int {{ arg._size_name }};
 {%- if parloop.is_layered %}
-  __local int {{ arg._size_name }}_base;
+  __local int {{ arg._base_layer_size_name }};
+  __global int* __local {{ arg._base_layer_offset_name }};
 {%- endif %}
   __local {{ arg.data._cl_type }}* __local {{ arg._shared_name }};
 {%- endfor %}
@@ -261,8 +263,8 @@ void {{ parloop._stub_name }}(
     offset_b = offset_b_abs - set_offset;
     {%- for arg in parloop._unique_indirect_dat_args -%}
     {%- if parloop.is_layered %}
-      {{ arg._size_name }} = p_ind_sizes[{{loop.index0}} + (block_id * {{ loop.length }} * 2)];
-      {{ arg._size_name }}_base = p_ind_sizes[{{loop.index0}} + (block_id * {{ loop.length }} * 2) + 1];
+      {{ arg._size_name }} = p_ind_sizes[({{loop.index0}} + block_id * {{ loop.length }}) * 2];
+      {{ arg._base_layer_size_name }} = p_ind_sizes[(({{loop.index0}} + block_id * {{ loop.length }}) * 2) + 1];
     {%- else %}
       {{ arg._size_name }} = p_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}];
     {%- endif %}
@@ -270,9 +272,16 @@ void {{ parloop._stub_name }}(
 {%- endfor %}
 
     nbytes = 0;
+    base_layer_index = 0;
 {%- for arg in parloop._unique_indirect_dat_args %}
     {{ arg._shared_name }} = (__local {{ arg.data._cl_type }}*) (&shared[nbytes]);
     nbytes += ROUND_UP({{arg._size_name }} * {{ arg.data.cdim }} * sizeof({{ arg.data._cl_type }}));
+
+    {%- if parloop.is_layered %}
+    {{ arg._base_layer_offset_name }} = &(p_base_layer_offsets[base_layer_index]);
+    base_layer_index += {{ arg._base_layer_size_name }} + 1;
+    {%- endif %}
+
 {%- endfor %}
   }
   barrier(CLK_LOCAL_MEM_FENCE);

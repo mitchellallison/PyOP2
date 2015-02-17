@@ -76,7 +76,7 @@ cdef class _Plan:
 
     cdef numpy.ndarray _nelems
     cdef numpy.ndarray _ind_map
-    cdef numpy.ndarray _base_layer_offset
+    cdef numpy.ndarray _base_layer_offsets
     cdef numpy.ndarray _loc_map
     cdef numpy.ndarray _ind_sizes
     cdef numpy.ndarray _nindirect
@@ -145,8 +145,8 @@ cdef class _Plan:
         locs = {}   # Offset of staged data in shared memory by dat via map in
                     # given partition
         sizes = {}  # # of indices references by dat via map in given partition
-        intervals = [] # Intervals used in extruded set calculations
-        cum_interval_len = [0]
+        intervals = {} # Intervals used in extruded set calculations
+        cum_interval_lengths = {}
 
         for pi in range(self._nblocks):
             start = self._offset[pi]
@@ -172,30 +172,32 @@ cdef class _Plan:
                 # ranges of columns as intervals, storing the lengths of these
                 # intervals and creating an inverse map from these values.
                 elif layers > 1:
+                    ind_intervals = []
+                    cum_interval_len = [0]
                     curr_interval = 0
                     print "inds: {}".format(inds[dat, map, pi])
                     for i, ind in enumerate(inds[dat, map, pi]):
-                        while curr_interval < len(intervals) and ind > intervals[curr_interval][1]:
+                        while curr_interval < len(ind_intervals) and ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
-                        if curr_interval < len(intervals) and intervals[curr_interval][1] > ind:
+                        if curr_interval < len(ind_intervals) and ind_intervals[curr_interval][1] > ind:
                             # ind is within the interval, so extend the interval
                             # to account for the layers from ind.
-                            intervals[curr_interval][1] = max(ind + (layers - 1), intervals[curr_interval][1])
+                            ind_intervals[curr_interval][1] = max(ind + (layers - 1), ind_intervals[curr_interval][1])
                         else:
                             # ind is outside the interval, so create a new
                             # interval. Append an element to the cumulative
                             # length.
-                            intervals.append([ind, ind + (layers - 1)])
+                            ind_intervals.append([ind, ind + (layers - 1)])
                             cum_interval_len.append(0)
-                        cum_interval_len[curr_interval + 1] = cum_interval_len[curr_interval] + (intervals[curr_interval][1] - intervals[curr_interval][0] + 1)
+                        cum_interval_len[curr_interval + 1] = cum_interval_len[curr_interval] + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1)
 
-                    print intervals
+                    print ind_intervals
                     print cum_interval_len
 
                     inv = []
                     for _, arr in enumerate(staged_values):
                         for _, val in enumerate(arr):
-                            for i, interval in enumerate(intervals):
+                            for i, interval in enumerate(ind_intervals):
                                 if val < interval[1]:
                                     inv.append(cum_interval_len[i] + val - interval[0])
                                     break
@@ -204,6 +206,9 @@ cdef class _Plan:
 
                     sizes[dat, map, pi] = cum_interval_len[-1]
                     sizes[dat, map, pi + self._nblocks] = len(inds[dat, map, pi])
+
+                    intervals[dat, map, pi] = ind_intervals
+                    cum_interval_lengths[dat, map, pi] = cum_interval_len
 
                 for i, ind in enumerate(sorted(ii)):
                     locs[dat, map, ind, pi] = inv[i::l]
@@ -243,44 +248,51 @@ cdef class _Plan:
                        for pi in range(self._nblocks))
         self._loc_map = numpy.concatenate(locs_t) if locs_t else numpy.array([], dtype=numpy.int16)
 
-        base_layer_count = []
+        base_layer_offsets = []
         if layers > 1:
-            # For the staging in/out of the data, we calculate an array
-            # of layer counts to accompany the loc map. For example, the
-            # following combination means that 11 layers should be staged
-            # in from 0 and 0 layers should be staged in from 1 (to account
-            # for overlaps in data).
-            # loc_map:          [0,  1, 11, 12, 22, 23, 33, 34]
-            # base_layer_count  [11, 0, 11, 0,  11, 0,  11, 0]
-            # base_layer_offset [0, 11, 11, 22, 22, 22, 33, 33, 44]
-            curr_interval = 0
-            visited_intervals = [False] * len(intervals)
-            visited_interval_indices = [0] * len(intervals)
-            for i, ind in enumerate(self._ind_map):
-                if ind < 0:
-                    break
-                while ind > intervals[curr_interval][1]:
-                    curr_interval += 1
-                if visited_intervals[curr_interval]:
-                    print "1: ind: {}".format(ind)
-                    base_layer_count.append(0)
-                    base_layer_count[visited_interval_indices[curr_interval]] += ind - intervals[curr_interval][0]
-                else:
-                    print "2: ind: {}".format(ind)
-                    base_layer_count.append(layers)
-                    visited_intervals[curr_interval] = True
-                    visited_interval_indices[curr_interval] = i
-                print "base_layer_count: {}".format(base_layer_count)
+            for pi in range(self._nblocks):
+                for dat, map in d.iterkeys():
+                    # For the staging in/out of the data, we calculate an array
+                    # of layer counts to accompany the loc map. For example, the
+                    # following combination means that 11 layers should be staged
+                    # in from 0 and 0 layers should be staged in from 1 (to account
+                    # for overlaps in data).
+                    # loc_map:          [0,  1, 11, 12, 22, 23, 33, 34]
+                    # base_layer_count  [11, 0, 11, 0,  11, 0,  11, 0]
+                    # base_layer_offset [0, 11, 11, 22, 22, 22, 33, 33, 44]
+                    ind_intervals = intervals[dat, map, pi]
+                    base_layer_count = []
+                    curr_interval = 0
+                    visited_intervals = [False] * len(ind_intervals)
+                    visited_interval_indices = [0] * len(ind_intervals)
+                    for i, ind in enumerate(self._ind_map):
+                        if ind < 0:
+                            break
+                        while ind > ind_intervals[curr_interval][1]:
+                            curr_interval += 1
+                        if visited_intervals[curr_interval]:
+                            print "1: ind: {}".format(ind)
+                            base_layer_count.append(0)
+                            base_layer_count[visited_interval_indices[curr_interval]] += ind - ind_intervals[curr_interval][0]
+                        else:
+                            print "2: ind: {}".format(ind)
+                            base_layer_count.append(layers)
+                            visited_intervals[curr_interval] = True
+                            visited_interval_indices[curr_interval] = i
+                        print "base_layer_count: {}".format(base_layer_count)
 
-            base_layer_offset = [0]
-            count = 0
-            for i, ind in enumerate(base_layer_count):
-                count += ind
-                base_layer_offset.append(count)
+                    base_layer_offset = [0]
+                    count = 0
+                    for i, ind in enumerate(base_layer_count):
+                        count += ind
+                        base_layer_offset.append(count)
 
-            print base_layer_offset
+                    base_layer_offsets.append(base_layer_offset)
 
-        self._base_layer_offset = numpy.array(base_layer_offset).astype(numpy.int32) if base_layer_offset else numpy.array([], dtype=numpy.int16)
+                    print base_layer_offset
+
+        self._base_layer_offsets = numpy.concatenate(base_layer_offsets).astype(numpy.int32) if base_layer_offsets else numpy.array([], dtype=numpy.int32)
+        print self._base_layer_offsets
 
         def off_iter():
             _off = dict()
@@ -552,12 +564,12 @@ cdef class _Plan:
         return self._loc_map
 
     @property
-    def base_layer_offset(self):
-        """Array of offsets into shared memory that the corresponding
-        values in the indirection map relate to. Can also be used to calculate
-        the number of layers to stage in by taking the difference between two
-        consecutive values."""
-        return self._base_layer_offset
+    def base_layer_offsets(self):
+        """Array of offsets into shared memory that the corresponding values in
+        the indirection map relate to, for each Dat/Map pair. Can also be used
+        to calculate the number of layers to stage in by taking the difference
+        between two consecutive values."""
+        return self._base_layer_offsets
 
     @property
     def blkmap(self):
