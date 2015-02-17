@@ -102,14 +102,11 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 
 {%- macro work_group_reduction(arg) -%}
 {%- if parloop.is_layered %}
-for (i_1 = get_global_id(0); i_1 < {{ arg._size_name}}_base; i_1 += get_local_size(0)) {
-  int layer_count = p_base_layer_count[i_1];
-  int shared_offset = 0;
-  for (int i_2 = 0; i_2 < i_1; i_2++) {
-    shared_offset += p_base_layer_count[i_2];
-  }
+for (i_1 = 0; i_1 < {{ arg._size_name}}_base; i_1++) {
+  int shared_offset = p_base_layer_offset[i_1];
+  int layer_count = p_base_layer_offset[i_1 + 1] - p_base_layer_offset[i_1];
   int map_index = {{ arg._map_name }}[i_1 / {{ arg.data.cdim }}];
-  for (int layer = 0; layer < layer_count; layer++) {
+  for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
     {{arg.name}}[i_1 % {{ arg.data.cdim }} + (map_index + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[shared_offset + layer];
   }
 }
@@ -164,7 +161,7 @@ void {{ parloop._stub_name }}(
   {% endif -%}
   __global int* p_ind_map,
   {%- if parloop.is_layered %}
-  __global int* p_base_layer_count,
+  __global int* p_base_layer_offset,
   {%- endif %}
   __global short *p_loc_map,
   __global int* p_ind_sizes,

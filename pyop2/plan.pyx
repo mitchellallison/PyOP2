@@ -76,7 +76,7 @@ cdef class _Plan:
 
     cdef numpy.ndarray _nelems
     cdef numpy.ndarray _ind_map
-    cdef numpy.ndarray _base_layer_count
+    cdef numpy.ndarray _base_layer_offset
     cdef numpy.ndarray _loc_map
     cdef numpy.ndarray _ind_sizes
     cdef numpy.ndarray _nindirect
@@ -146,7 +146,7 @@ cdef class _Plan:
                     # given partition
         sizes = {}  # # of indices references by dat via map in given partition
         intervals = [] # Intervals used in extruded set calculations
-        cum_interval_len = []
+        cum_interval_len = [0]
 
         for pi in range(self._nblocks):
             start = self._offset[pi]
@@ -172,19 +172,22 @@ cdef class _Plan:
                 # ranges of columns as intervals, storing the lengths of these
                 # intervals and creating an inverse map from these values.
                 elif layers > 1:
-                    cum_interval_len = [0]
+                    curr_interval = 0
+                    print "inds: {}".format(inds[dat, map, pi])
                     for i, ind in enumerate(inds[dat, map, pi]):
-                        if len(intervals) > 0 and intervals[-1][1] > ind:
+                        while curr_interval < len(intervals) and ind > intervals[curr_interval][1]:
+                            curr_interval += 1
+                        if curr_interval < len(intervals) and intervals[curr_interval][1] > ind:
                             # ind is within the interval, so extend the interval
                             # to account for the layers from ind.
-                            intervals[-1][1] = ind + (layers - 1)
+                            intervals[curr_interval][1] = max(ind + (layers - 1), intervals[curr_interval][1])
                         else:
                             # ind is outside the interval, so create a new
                             # interval. Append an element to the cumulative
                             # length.
                             intervals.append([ind, ind + (layers - 1)])
                             cum_interval_len.append(0)
-                        cum_interval_len[-1] = cum_interval_len[-2] + (intervals[-1][1] - intervals[-1][0] + 1)
+                        cum_interval_len[curr_interval + 1] = cum_interval_len[curr_interval] + (intervals[curr_interval][1] - intervals[curr_interval][0] + 1)
 
                     print intervals
                     print cum_interval_len
@@ -249,6 +252,7 @@ cdef class _Plan:
             # for overlaps in data).
             # loc_map:          [0,  1, 11, 12, 22, 23, 33, 34]
             # base_layer_count  [11, 0, 11, 0,  11, 0,  11, 0]
+            # base_layer_offset [0, 11, 11, 22, 22, 22, 33, 33, 44]
             curr_interval = 0
             visited_intervals = [False] * len(intervals)
             visited_interval_indices = [0] * len(intervals)
@@ -267,7 +271,16 @@ cdef class _Plan:
                     visited_intervals[curr_interval] = True
                     visited_interval_indices[curr_interval] = i
                 print "base_layer_count: {}".format(base_layer_count)
-        self._base_layer_count = numpy.array(base_layer_count).astype(numpy.int32) if base_layer_count else numpy.array([], dtype=numpy.int16)
+
+            base_layer_offset = [0]
+            count = 0
+            for i, ind in enumerate(base_layer_count):
+                count += ind
+                base_layer_offset.append(count)
+
+            print base_layer_offset
+
+        self._base_layer_offset = numpy.array(base_layer_offset).astype(numpy.int32) if base_layer_offset else numpy.array([], dtype=numpy.int16)
 
         def off_iter():
             _off = dict()
@@ -539,10 +552,12 @@ cdef class _Plan:
         return self._loc_map
 
     @property
-    def base_layer_count(self):
-        """Array of the number of layers to stage in/out of shared memory,
-        corresponding to the values in the indirection map."""
-        return self._base_layer_count
+    def base_layer_offset(self):
+        """Array of offsets into shared memory that the corresponding
+        values in the indirection map relate to. Can also be used to calculate
+        the number of layers to stage in by taking the difference between two
+        consecutive values."""
+        return self._base_layer_offset
 
     @property
     def blkmap(self):
