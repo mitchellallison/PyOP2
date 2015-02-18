@@ -161,6 +161,12 @@ cdef class _Plan:
                 else:
                     staged_values = map.values_with_halo[start:end, ii]
 
+                offsets = {}
+
+                for i, m in enumerate(staged_values):
+                    for j, val in enumerate(m):
+                        offsets[val] = map.offset[j]
+
                 inds[dat, map, pi], inv = numpy.unique(staged_values, return_inverse=True)
 
                 if layers == 1:
@@ -182,12 +188,12 @@ cdef class _Plan:
                         if curr_interval < len(ind_intervals) and ind_intervals[curr_interval][1] > ind:
                             # ind is within the interval, so extend the interval
                             # to account for the layers from ind.
-                            ind_intervals[curr_interval][1] = max(ind + (layers - 1), ind_intervals[curr_interval][1])
+                            ind_intervals[curr_interval][1] = max(ind + offsets[ind] * (layers - 1), ind_intervals[curr_interval][1])
                         else:
                             # ind is outside the interval, so create a new
                             # interval. Append an element to the cumulative
                             # length.
-                            ind_intervals.append([ind, ind + (layers - 1)])
+                            ind_intervals.append([ind, ind + offsets[ind] * (layers - 1)])
                             cum_interval_len.append(0)
                         cum_interval_len[curr_interval + 1] = cum_interval_len[curr_interval] + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1)
 
@@ -261,35 +267,27 @@ cdef class _Plan:
                     # base_layer_count  [11, 0, 11, 0,  11, 0,  11, 0]
                     # base_layer_offset [0, 11, 11, 22, 22, 22, 33, 33, 44]
                     ind_intervals = intervals[dat, map, pi]
-                    base_layer_count = []
+                    base_layer_count = [0]
                     curr_interval = 0
                     visited_intervals = [False] * len(ind_intervals)
                     visited_interval_indices = [0] * len(ind_intervals)
                     for i, ind in enumerate(self._ind_map):
+                        prev = base_layer_count[-1]
                         if ind < 0:
                             break
                         while ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
                         if visited_intervals[curr_interval]:
                             print "1: ind: {}".format(ind)
-                            base_layer_count.append(0)
-                            base_layer_count[visited_interval_indices[curr_interval]] += ind - ind_intervals[curr_interval][0]
+                            base_layer_count.append(prev)
                         else:
                             print "2: ind: {}".format(ind)
-                            base_layer_count.append(layers)
+                            base_layer_count.append(prev + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1))
                             visited_intervals[curr_interval] = True
                             visited_interval_indices[curr_interval] = i
                         print "base_layer_count: {}".format(base_layer_count)
 
-                    base_layer_offset = [0]
-                    count = 0
-                    for i, ind in enumerate(base_layer_count):
-                        count += ind
-                        base_layer_offset.append(count)
-
-                    base_layer_offsets.append(base_layer_offset)
-
-                    print base_layer_offset
+                    base_layer_offsets.append(base_layer_count)
 
         self._base_layer_offsets = numpy.concatenate(base_layer_offsets).astype(numpy.int32) if base_layer_offsets else numpy.array([], dtype=numpy.int32)
         print self._base_layer_offsets

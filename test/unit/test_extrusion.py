@@ -41,7 +41,7 @@ from pyop2.computeind import compute_ind_extr
 
 from coffee.base import *
 
-backends = ['sequential', 'openmp']
+backends = ['sequential', 'opencl', 'openmp']
 
 # Data type
 valuetype = numpy.float64

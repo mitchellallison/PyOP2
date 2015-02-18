@@ -80,11 +80,11 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
     {%- endif %}
     {%- if parloop.is_layered %}
       {%- if(arg._is_INC) %}
-    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
+    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.offset[i] }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
       {%- elif(arg._is_MIN) %}
-    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.offset[i] }}) * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- elif(arg._is_MAX) %}
-    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = max({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.offset[i] }})) * {{ arg.data.cdim }}] = max({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- endif %}
     {%- else %}
       {%- if(arg._is_INC) %}
@@ -104,7 +104,7 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 {%- if parloop.is_layered %}
 for (i_1 = 0; i_1 < {{ arg._base_layer_size_name}}; i_1++) {
   int shared_offset = {{ arg._base_layer_offset_name }}[i_1];
-  volatile int layer_count = {{ arg._base_layer_offset_name }}[i_1 + 1] - {{ arg._base_layer_offset_name }}[i_1];
+  int layer_count = {{ arg._base_layer_offset_name }}[i_1 + 1] - {{ arg._base_layer_offset_name }}[i_1];
   int map_index = {{ arg._map_name }}[i_1 / {{ arg.data.cdim }}];
   for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
     {{arg.name}}[i_1 % {{ arg.data.cdim }} + (map_index + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[shared_offset + layer];
