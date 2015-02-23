@@ -163,10 +163,6 @@ cdef class _Plan:
 
                 offsets = {}
 
-                for i, m in enumerate(staged_values):
-                    for j, val in enumerate(m):
-                        offsets[val] = map.offset[j]
-
                 inds[dat, map, pi], inv = numpy.unique(staged_values, return_inverse=True)
 
                 if layers == 1:
@@ -178,10 +174,13 @@ cdef class _Plan:
                 # ranges of columns as intervals, storing the lengths of these
                 # intervals and creating an inverse map from these values.
                 elif layers > 1:
+                    for i, m in enumerate(staged_values):
+                        for j, val in enumerate(m):
+                            offsets[val] = map.offset[j] if map.offset != None else 0
+
                     ind_intervals = []
                     cum_interval_len = [0]
                     curr_interval = 0
-                    print "inds: {}".format(inds[dat, map, pi])
                     for i, ind in enumerate(inds[dat, map, pi]):
                         while curr_interval < len(ind_intervals) and ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
@@ -196,9 +195,6 @@ cdef class _Plan:
                             ind_intervals.append([ind, ind + offsets[ind] * (layers - 1)])
                             cum_interval_len.append(0)
                         cum_interval_len[curr_interval + 1] = cum_interval_len[curr_interval] + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1)
-
-                    print ind_intervals
-                    print cum_interval_len
 
                     inv = []
                     for _, arr in enumerate(staged_values):
@@ -278,19 +274,15 @@ cdef class _Plan:
                         while ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
                         if visited_intervals[curr_interval]:
-                            print "1: ind: {}".format(ind)
                             base_layer_count.append(prev)
                         else:
-                            print "2: ind: {}".format(ind)
                             base_layer_count.append(prev + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1))
                             visited_intervals[curr_interval] = True
                             visited_interval_indices[curr_interval] = i
-                        print "base_layer_count: {}".format(base_layer_count)
 
                     base_layer_offsets.append(base_layer_count)
 
         self._base_layer_offsets = numpy.concatenate(base_layer_offsets).astype(numpy.int32) if base_layer_offsets else numpy.array([], dtype=numpy.int32)
-        print self._base_layer_offsets
 
         def off_iter():
             _off = dict()
