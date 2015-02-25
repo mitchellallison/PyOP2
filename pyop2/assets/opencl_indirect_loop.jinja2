@@ -134,11 +134,12 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 
 {%- macro work_group_reduction(arg) -%}
 {%- if parloop.is_layered %}
-for (i_1 = 0; i_1 < {{ arg._base_layer_size_name}}; i_1++) {
-  int shared_offset = {{ arg._base_layer_offset_name }}[i_1];
-  int layer_count = {{ arg._base_layer_offset_name }}[i_1 + 1] - {{ arg._base_layer_offset_name }}[i_1];
+for (i_1 = 0; i_1 < {{ arg._base_layer_size_name}} * {{ arg.data.cdim }}; i_1++) {
+  int index = i_1 / {{ arg.data.cdim }};
+  int shared_offset = {{ arg._base_layer_offset_name }}[index];
+  int layer_count = {{ arg._base_layer_offset_name }}[index + 1] - {{ arg._base_layer_offset_name }}[index];
   for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
-    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[i_1 / {{ arg.data.cdim }}] + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[shared_offset + layer];
+    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}];
   }
 }
 {%- else %}
@@ -387,7 +388,7 @@ void {{ parloop._stub_name }}(
 {%- else %}
   for (i_1 = get_local_id(0); i_1 < active_threads_count; i_1 += get_local_size(0)) {
   {%- if(parloop.is_layered) %}
-    for (int layer = 0; layer < {{ parloop.layer_arg[0] }}; layer++) {
+    for (int layer = 0; layer < {{ parloop.layer_arg[0] - 1 }}; layer++) {
   {%- endif %}
     {{ kernel_call() | indent(6) }}
   {%- if(parloop.is_layered) %}
