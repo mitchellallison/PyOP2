@@ -251,6 +251,7 @@ cdef class _Plan:
         self._loc_map = numpy.concatenate(locs_t) if locs_t else numpy.array([], dtype=numpy.int16)
 
         base_layer_offsets = []
+        offset = 0
         if layers > 1:
             for pi in range(self._nblocks):
                 for dat, map in d.iterkeys():
@@ -267,10 +268,9 @@ cdef class _Plan:
                     curr_interval = 0
                     visited_intervals = [False] * len(ind_intervals)
                     visited_interval_indices = [0] * len(ind_intervals)
-                    for i, ind in enumerate(self._ind_map):
+                    for i, ind in enumerate(self._ind_map[offset:offset + len(inds[dat, map, pi])]):
+                        print "i: {}, ind: {}\n".format(i, ind)
                         prev = base_layer_count[-1]
-                        if ind < 0:
-                            break
                         while ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
                         if visited_intervals[curr_interval]:
@@ -279,6 +279,8 @@ cdef class _Plan:
                             base_layer_count.append(prev + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1))
                             visited_intervals[curr_interval] = True
                             visited_interval_indices[curr_interval] = i
+                    offset += map.values.size
+                    print offset
 
                     base_layer_offsets.append(base_layer_count)
 
