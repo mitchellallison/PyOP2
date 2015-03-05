@@ -38,6 +38,7 @@ Cython implementation of the Plan construction.
 import base
 from profiling import timed_region
 from utils import align, as_tuple
+from configuration import configuration
 import math
 import numpy
 cimport numpy
@@ -200,7 +201,7 @@ cdef class _Plan:
                     for _, arr in enumerate(staged_values):
                         for _, val in enumerate(arr):
                             for i, interval in enumerate(ind_intervals):
-                                if val < interval[1]:
+                                if val <= interval[1]:
                                     inv.append(cum_interval_len[i] + val - interval[0])
                                     break
 
@@ -269,7 +270,8 @@ cdef class _Plan:
                     visited_intervals = [False] * len(ind_intervals)
                     visited_interval_indices = [0] * len(ind_intervals)
                     for i, ind in enumerate(self._ind_map[offset:offset + len(inds[dat, map, pi])]):
-                        print "i: {}, ind: {}\n".format(i, ind)
+                        if configuration["dbg"]:
+                            print "i: {}, ind: {}\n".format(i, ind) 
                         prev = base_layer_count[-1]
                         while ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
@@ -280,7 +282,8 @@ cdef class _Plan:
                             visited_intervals[curr_interval] = True
                             visited_interval_indices[curr_interval] = i
                     offset += map.values.size
-                    print offset
+                    if configuration["dbg"]:
+                        print offset
 
                     base_layer_offsets.append(base_layer_count)
 

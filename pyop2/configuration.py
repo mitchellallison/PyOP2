@@ -87,6 +87,7 @@ class Configuration(dict):
         "dump_gencode_path": ("PYOP2_DUMP_GENCODE_PATH", str,
                               os.path.join(gettempdir(), "pyop2-gencode")),
         "matnest": ("PYOP2_MATNEST", bool, True),
+        "dbg": ("PYOP2_DBG", bool, False),
     }
     """Default values for PyOP2 configuration parameters"""
     READONLY = ['backend']

@@ -48,6 +48,7 @@ import plan
 import petsc_base
 from profiling import lineprof
 from utils import verify_reshape, uniquify, maybe_setflags
+from configuration import configuration
 
 
 class Kernel(device.Kernel):
@@ -540,7 +541,8 @@ class JITModule(base.JITModule):
                                'user_kernel': user_kernel,
                                'launch': self._conf,
                                'codegen': {'amd': _AMD_fixes},
-                               'op2const': Const._definitions()
+                               'op2const': Const._definitions(),
+                               'configuration': configuration
                                }).encode("ascii")
         self._dump_generated_code(src, ext="cl")
         prg = cl.Program(_ctx, src).build()
