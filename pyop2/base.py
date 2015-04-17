@@ -510,8 +510,8 @@ class Arg(object):
         :class:`Const` or :class:`Global`."""
         return self._dat
 
-class Set(object):
 
+class Set(object):
     """OP2 set.
 
     :param size: The size of the set.
@@ -2951,7 +2951,7 @@ class Map(object):
 
     def get_offset(self, i):
         """Returns the ith vertical offset if the it exists, otherwise 0."""
-        return self._offset[i] if self._offset != None else 0
+        return self._offset[i] if self._offset is not None else 0
 
     @classmethod
     def fromhdf5(cls, iterset, toset, f, name):
