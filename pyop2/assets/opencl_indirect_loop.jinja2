@@ -31,6 +31,7 @@
     {%- if configuration['dbg'] %}
       printf("Layer %d of %d\n", layer, layer_count);
       printf("Index into %s: %d\n", "{{arg._shared_name}}", i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{arg.data.cdim}});
+      printf("Value: %f", {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}]);
     {%- endif %}
       {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}] = {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}];
     }
@@ -57,7 +58,11 @@
   {%- if arg._flatten %}
     {%- for j in range(arg.data.dataset.cdim) %}
       {%- for i in range(arg.map.arity) %}
-{{ arg._vec_name }}[{{ j * arg.map.arity + i }}] = {{ arg._shared_name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }} + {{ j }};
+{{ arg._vec_name }}[{{ j * arg.map.arity + i }}] = {{ arg._shared_name }} + (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }} + {{ j }};
+{%- if configuration['dbg'] %}
+  printf("index into shared = %d\n", (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }} + {{ j }});
+  printf("{{ arg._vec_name }}[{{ j * arg.map.arity + i }}][0] = %f\n", {{ arg._vec_name }}[{{ j * arg.map.arity + i }}][0]);
+{%- endif %}
       {%- endfor -%}
     {%- endfor -%}
   {%- else %}
@@ -68,7 +73,7 @@
 printf("i_1: %d, loc_map idx: %d, {{i}} -> %d\n", i_1, i_1 + {{ arg._which_indirect + i }}*set_size + offset_b, (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer) * 3);
       {%- endif %}
 {%- endif %}
-{{ arg._vec_name }}[{{ i }}] = {{ arg._shared_name }} + (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.offset[i] if arg.map.offset != None else 0 }}) * {{ arg.data.cdim }};
+{{ arg._vec_name }}[{{ i }}] = {{ arg._shared_name }} + (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }};
     {%- else %}
 {{ arg._vec_name }}[{{ i }}] = {{ arg._shared_name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }};
     {%- endif %}
@@ -121,11 +126,11 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
     {%- endif %}
     {%- if parloop.is_layered %}
       {%- if(arg._is_INC) %}
-    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.offset[i] }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
+    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
       {%- elif(arg._is_MIN) %}
-    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.offset[i] }}) * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- elif(arg._is_MAX) %}
-    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.offset[i] }})) * {{ arg.data.cdim }}] = max({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }})) * {{ arg.data.cdim }}] = max({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- endif %}
     {%- else %}
       {%- if(arg._is_INC) %}
@@ -366,6 +371,11 @@ void {{ parloop._stub_name }}(
       {%- endfor %}
 
       {{ kernel_call() | indent(6) }}
+      {%- if configuration['dbg'] %}
+      {%- for i in range(parloop._it_space._extent_ranges[0]) %}
+        printf("%f\n", ind_arg0_{{ i }}_local[0]);
+      {%- endfor -%}
+      {%- endif %} 
       color_2 = p_thrcol[i_1 + offset_b];
     }
     for (color_1 = 0; color_1 < colors_count; ++color_1) {
