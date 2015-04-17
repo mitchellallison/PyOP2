@@ -364,7 +364,7 @@ void comp_vol(double A[1], double *x[], double *y[])
                      dat_coords(op2.READ, coords_map),
                      dat_field(op2.READ, field_map))
 
-        assert int(g.data[0]) == int((layers - 1) * 0.1 * (nelems / 2))
+        assert abs(g.data[0] - int((layers - 1) * 0.1 * (nelems / 2))) < 1e-13
 
     def test_extruded_nbytes(self, backend, dat_field):
         """Nbytes computes the number of bytes occupied by an extruded Dat."""
@@ -420,12 +420,11 @@ void comp_vol(double A[1], double *x[], double *y[])
                                  dat_f):
         kernel_inc = """void kernel_inc(double* x[], double* y[]) {
                                                                for (int i=0; i<6; i++){
-                                                                 if (y[i][0] == 0){
                                                                     y[i][0] += 1;
                                                                     y[i][1] += 1;
-                                                                 }
                                                                }
                                                             }\n"""
+
         op2.par_loop(op2.Kernel(kernel_inc, "kernel_inc"), elements,
                      dat_coords(op2.READ, coords_map),
                      dat_c(op2.INC, coords_map))
