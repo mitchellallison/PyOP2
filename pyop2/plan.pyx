@@ -147,7 +147,6 @@ cdef class _Plan:
                     # given partition
         sizes = {}  # # of indices references by dat via map in given partition
         intervals = {} # Intervals used in extruded set calculations
-        cum_interval_lengths = {}
 
         for pi in range(self._nblocks):
             start = self._offset[pi]
@@ -176,6 +175,7 @@ cdef class _Plan:
                 # ranges of columns as intervals, storing the lengths of these
                 # intervals and creating an inverse map from these values.
                 elif layers > 1:
+                    # Store vertical offsets for each index
                     for i, m in enumerate(staged_values):
                         for j, val in enumerate(m):
                             offsets[val] = map.offset[j] if map.offset != None else 0
@@ -184,35 +184,43 @@ cdef class _Plan:
                     cum_interval_len = [0]
                     curr_interval = 0
                     for i, ind in enumerate(inds[dat, map, pi]):
+                        # Iterate through the intervals while ind is not within
+                        # the bounds.
                         while curr_interval < len(ind_intervals) and ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
+                        # ind is within the interval, so extend the interval to account for the layers from ind.
                         if curr_interval < len(ind_intervals) and ind_intervals[curr_interval][1] > ind:
-                            # ind is within the interval, so extend the interval
-                            # to account for the layers from ind.
                             ind_intervals[curr_interval][1] = max(ind + offsets[ind] * (layers - 1), ind_intervals[curr_interval][1])
+                        # ind is outside the interval, so create a new
+                        # interval. Append an element to the cumulative length.
                         else:
-                            # ind is outside the interval, so create a new
-                            # interval. Append an element to the cumulative
-                            # length.
                             ind_intervals.append([ind, ind + offsets[ind] * (layers - 1)])
                             cum_interval_len.append(0)
+                        # Extend the cumulative interval lengths to account for
+                        # the index.
                         cum_interval_len[curr_interval + 1] = cum_interval_len[curr_interval] + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1)
 
+                    # Calculate inverse map.
                     inv = []
                     for _, arr in enumerate(staged_values):
                         for _, val in enumerate(arr):
                             for i, interval in enumerate(ind_intervals):
                                 if val <= interval[1]:
+                                    # Append the current cumulative length plus
+                                    # the difference between the beginning of
+                                    # the current interval and val.
                                     inv.append(cum_interval_len[i] + val - interval[0])
                                     break
 
                     inv = numpy.array(inv)
 
+                    # Set the size to be the total cumulative length
                     sizes[dat, map, pi] = cum_interval_len[-1]
+
+                    # Store the normal base layer size offset into sizes.
                     sizes[dat, map, pi + self._nblocks] = len(inds[dat, map, pi])
 
                     intervals[dat, map, pi] = ind_intervals
-                    cum_interval_lengths[dat, map, pi] = cum_interval_len
 
                 for i, ind in enumerate(sorted(ii)):
                     locs[dat, map, ind, pi] = inv[i::l]
@@ -252,37 +260,42 @@ cdef class _Plan:
                        for pi in range(self._nblocks))
         self._loc_map = numpy.concatenate(locs_t) if locs_t else numpy.array([], dtype=numpy.int16)
 
+        # For the staging in/out of extruded data, we calculate an array of
+        # layer counts to accompany the ind map. For example, the following
+        # combination means that 11 layers should be staged in from 0 and 0
+        # layers should be staged in from 1 (to account for overlaps in data)
+        # and so on.
+        # ind_map:          [0, 1, 11, 12, 22, 23, 33, 34]
+        # base_layer_offset [0, 11, 11, 22, 22, 33, 33, 33, 44]
         base_layer_offsets = []
         offset = 0
         if layers > 1:
             for pi in range(self._nblocks):
                 for dat, map in d.iterkeys():
-                    # For the staging in/out of the data, we calculate an array
-                    # of layer counts to accompany the loc map. For example, the
-                    # following combination means that 11 layers should be staged
-                    # in from 0 and 0 layers should be staged in from 1 (to account
-                    # for overlaps in data).
-                    # loc_map:          [0,  1, 11, 12, 22, 23, 33, 34]
-                    # base_layer_count  [11, 0, 11, 0,  11, 0,  11, 0]
-                    # base_layer_offset [0, 11, 11, 22, 22, 22, 33, 33, 44]
                     ind_intervals = intervals[dat, map, pi]
-                    base_layer_count = [0]
+                    base_layer_offset = [0]
                     curr_interval = 0
+                    # Keep track of the visited intervals.
                     visited_intervals = [False] * len(ind_intervals)
-                    visited_interval_indices = [0] * len(ind_intervals)
+                    # Iterate through the intervals of the ind map.
                     for i, ind in enumerate(self._ind_map[offset:offset + len(inds[dat, map, pi])]):
-                        prev = base_layer_count[-1]
+                        prev = base_layer_offset[-1]
+                        # Locate the appropriate interval
                         while ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
+                        # If we have visited the interval before, do not stage
+                        # more data. Instead, append the previous value.
                         if visited_intervals[curr_interval]:
-                            base_layer_count.append(prev)
+                            base_layer_offset.append(prev)
+                        # If we haven't yet visited the interval, append the
+                        # interval length.
                         else:
-                            base_layer_count.append(prev + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1))
+                            base_layer_offset.append(prev + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1))
                             visited_intervals[curr_interval] = True
-                            visited_interval_indices[curr_interval] = i
+                    # Update the index into the ind_map
                     offset += map.values.size
 
-                    base_layer_offsets.append(base_layer_count)
+                    base_layer_offsets.append(base_layer_offset)
 
         self._base_layer_offsets = numpy.concatenate(base_layer_offsets).astype(numpy.int32) if base_layer_offsets else numpy.array([], dtype=numpy.int32)
 
