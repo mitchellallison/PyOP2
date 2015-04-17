@@ -504,6 +504,11 @@ class Arg(object):
             # pointer.
             self.data._data = np.copy(self.data._buf)
 
+    @property
+    def data(self):
+        """Data carrier of this argument: :class:`Dat`, :class:`Mat`,
+        :class:`Const` or :class:`Global`."""
+        return self._dat
 
 class Set(object):
 
@@ -2943,6 +2948,10 @@ class Map(object):
             # iteration region of the sparsitymap.
             return len(self.iteration_region - o.iteration_region) == 0 and self <= o._map
         return self == o or (isinstance(self._parent, Map) and self._parent <= o)
+
+    def get_offset(self, i):
+        """Returns the ith vertical offset if the it exists, otherwise 0."""
+        return self._offset[i] if self._offset != None else 0
 
     @classmethod
     def fromhdf5(cls, iterset, toset, f, name):
