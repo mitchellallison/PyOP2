@@ -155,6 +155,7 @@ cdef class _Plan:
 
             for dat,map in d.iterkeys():
                 ii = indices[dat, map]
+                ii = list(set(ii))
                 l = len(ii)
 
                 if (isinstance(iset.set, base.Subset)):
@@ -270,8 +271,6 @@ cdef class _Plan:
                     visited_intervals = [False] * len(ind_intervals)
                     visited_interval_indices = [0] * len(ind_intervals)
                     for i, ind in enumerate(self._ind_map[offset:offset + len(inds[dat, map, pi])]):
-                        if configuration["dbg"]:
-                            print "i: {}, ind: {}\n".format(i, ind) 
                         prev = base_layer_count[-1]
                         while ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
@@ -282,8 +281,6 @@ cdef class _Plan:
                             visited_intervals[curr_interval] = True
                             visited_interval_indices[curr_interval] = i
                     offset += map.values.size
-                    if configuration["dbg"]:
-                        print offset
 
                     base_layer_offsets.append(base_layer_count)
 
