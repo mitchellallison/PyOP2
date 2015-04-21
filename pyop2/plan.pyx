@@ -109,6 +109,8 @@ cdef class _Plan:
         self._nelems = numpy.array([min(partition_size, iset.size - i * partition_size) for i in range(self._nblocks)],
                                   dtype=numpy.int32)
 
+        print "nblocks: {}, nelems: {}\n".format(self._nblocks, self._nelems)
+
         def offset_iter(offset):
             _offset = offset
             for pi in range(self._nblocks):
@@ -161,6 +163,10 @@ cdef class _Plan:
                     staged_values = map.values_with_halo[iset.set.indices[start:end]][:, ii]
                 else:
                     staged_values = map.values_with_halo[start:end, ii]
+
+                if configuration['dbg']:
+                    print "pi: {}, start: {}, end: {}, ii: {}".format(pi, start, end, ii)
+                    print "staged_values: {}".format(staged_values)
 
                 offsets = {}
 
@@ -244,6 +250,7 @@ cdef class _Plan:
         def size_iter():
             for pi in range(self._nblocks):
                 for dat,map in d.iterkeys():
+                    print "size: {}".format(sizes[(dat, map, pi)])
                     yield sizes[(dat, map, pi)]
                     if layers > 1:
                         yield sizes[(dat, map, pi + self._nblocks)]
@@ -268,32 +275,45 @@ cdef class _Plan:
         # ind_map:          [0, 1, 11, 12, 22, 23, 33, 34]
         # base_layer_offset [0, 11, 11, 22, 22, 33, 33, 33, 44]
         base_layer_offsets = []
-        offset = 0
         if layers > 1:
+            ind_offset = 0
             for pi in range(self._nblocks):
+                print "pi: {}".format(pi)
                 for dat, map in d.iterkeys():
+                    print "ind_intervals: {}".format(intervals[dat, map, pi])
+                    print "ind_offset: {}, len(inds[dat, map, pi]): {}".format(ind_offset, len(inds[dat, map, pi]))
+                    print "self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])]: {}".format(self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])])
                     ind_intervals = intervals[dat, map, pi]
-                    base_layer_offset = [0]
+                    base_layer_offset = [self._ind_map[ind_offset]]
                     curr_interval = 0
                     # Keep track of the visited intervals.
                     visited_intervals = [False] * len(ind_intervals)
                     # Iterate through the intervals of the ind map.
-                    for i, ind in enumerate(self._ind_map[offset:offset + len(inds[dat, map, pi])]):
+                    for i, ind in enumerate(self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])]):
                         prev = base_layer_offset[-1]
                         # Locate the appropriate interval
                         while ind > ind_intervals[curr_interval][1]:
+                            if configuration['dbg']:
+                                print "Finding interval, curr_interval: {}, bounds: {}".format(curr_interval, ind_intervals[curr_interval])
                             curr_interval += 1
                         # If we have visited the interval before, do not stage
                         # more data. Instead, append the previous value.
                         if visited_intervals[curr_interval]:
+                            if configuration['dbg']:
+                                print "Visited, appending prev: {}".format(prev)
                             base_layer_offset.append(prev)
                         # If we haven't yet visited the interval, append the
                         # interval length.
                         else:
+                            if configuration['dbg']:
+                                print "Not visited, appending interval len"
                             base_layer_offset.append(prev + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1))
                             visited_intervals[curr_interval] = True
                     # Update the index into the ind_map
-                    offset += map.values.size
+                    ind_offset += len(inds[dat, map, pi])#map.values.size
+
+                    if configuration['dbg']:
+                        print "base_layer_offset: {}".format(base_layer_offset)
 
                     base_layer_offsets.append(base_layer_offset)
 

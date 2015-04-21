@@ -371,11 +371,6 @@ void {{ parloop._stub_name }}(
       {%- endfor %}
 
       {{ kernel_call() | indent(6) }}
-      {%- if configuration['dbg'] %}
-      {%- for i in range(parloop._it_space._extent_ranges[0]) %}
-        printf("%f\n", ind_arg0_{{ i }}_local[0]);
-      {%- endfor -%}
-      {%- endif %} 
       color_2 = p_thrcol[i_1 + offset_b];
     }
     for (color_1 = 0; color_1 < colors_count; ++color_1) {
