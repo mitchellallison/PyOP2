@@ -401,6 +401,12 @@ class Plan(plan.Plan):
         if not hasattr(self, '_ind_sizes_array'):
             self._ind_sizes_array = array.to_device(_queue, super(Plan, self).ind_sizes)
         return self._ind_sizes_array
+    
+    @property
+    def cum_ind_sizes(self):
+        if not hasattr(self, '_cum_ind_sizes_array'):
+            self._cum_ind_sizes_array = array.to_device(_queue, super(Plan, self).cum_ind_sizes)
+        return self._cum_ind_sizes_array
 
     @property
     def ind_offs(self):
@@ -617,7 +623,12 @@ class ParLoop(device.ParLoop):
         available_local_memory -= 2 * (len(self._unique_indirect_dat_args) - 1)
 
         max_bytes = sum(map(lambda a: a.data._bytes_per_elem, self._all_indirect_args))
-        return available_local_memory / (2 * _warpsize * max_bytes) * (2 * _warpsize)
+        partition_size = available_local_memory / (2 * _warpsize * max_bytes) * (2 * _warpsize)
+        if self.it_space.layers > 1:
+            partition_size /= (self.it_space.layers - 1)
+        if partition_size < 1:
+            raise NotImplemented("OpenCL extrusion does not yet support partitioning layers.")
+        return partition_size
 
     def launch_configuration(self):
         if self._is_direct:
@@ -729,6 +740,7 @@ class ParLoop(device.ParLoop):
                 args.append(_plan.base_layer_offsets.data)
             args.append(_plan.loc_map.data)
             args.append(_plan.ind_sizes.data)
+            args.append(_plan.cum_ind_sizes.data)
             args.append(_plan.ind_offs.data)
             args.append(_plan.blkmap.data)
             args.append(_plan.offset.data)
@@ -738,6 +750,10 @@ class ParLoop(device.ParLoop):
 
             block_offset = 0
             args.append(0)
+
+            if configuration['dbg']:
+                from IPython import embed; embed()
+
             for i in range(_plan.ncolors):
                 blocks_per_grid = int(_plan.ncolblk[i])
                 threads_per_block = min(_max_work_group_size, conf['partition_size'])

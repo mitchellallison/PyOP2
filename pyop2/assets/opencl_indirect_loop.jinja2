@@ -22,8 +22,9 @@
     {%- if configuration['dbg'] %}
     if (get_local_id(0) == 0) {
       printf("\n");
+      printf("{{ arg._base_layer_offset_name }}[index]: %d, {{ arg._base_layer_offset_name }}[index + 1]: %d\n", {{ arg._base_layer_offset_name }}[index], {{ arg._base_layer_offset_name }}[index + 1]);
+      printf("layer_count: %d, shared_offset: %d\n", layer_count, shared_offset);
       printf("index: %d, offset: %d, next offset: %d\n", index, shared_offset, {{ arg._base_layer_offset_name }}[index + 1]);
-      printf("layer_count: %d\n", layer_count);
       printf("Size of shared: %d, Size of base: %d\n", {{ arg._size_name }}, {{ arg._base_layer_size_name }});
     }
     {%- endif %}
@@ -31,7 +32,7 @@
     {%- if configuration['dbg'] %}
       printf("Layer %d of %d\n", layer, layer_count);
       printf("Index into %s: %d\n", "{{arg._shared_name}}", i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{arg.data.cdim}});
-      printf("Value: %f", {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}]);
+      printf("Value: %f\n", {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}]);
     {%- endif %}
       {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}] = {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}];
     }
@@ -68,11 +69,6 @@
   {%- else %}
     {%- for i in range(arg.map.arity) %}
     {%- if parloop.is_layered %}
-      {%- if configuration['dbg'] %}
-      {%- if arg.map.arity == 6 %}
-printf("i_1: %d, loc_map idx: %d, {{i}} -> %d\n", i_1, i_1 + {{ arg._which_indirect + i }}*set_size + offset_b, (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer) * 3);
-      {%- endif %}
-{%- endif %}
 {{ arg._vec_name }}[{{ i }}] = {{ arg._shared_name }} + (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }};
     {%- else %}
 {{ arg._vec_name }}[{{ i }}] = {{ arg._shared_name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }};
@@ -95,9 +91,11 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 {%- endmacro -%}
 
 {%- macro color_reduction(arg) -%}
+printf("WHAT");
 for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
     {%- if parloop.is_layered %}
       {%- if(arg._is_INC) -%}
+      printf("i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] = %d", i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size]);
       {{ arg._shared_name }}[i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] += {{ arg._local_name() }}[i_2];
       {%- elif(arg._is_MIN) %}
       {{ arg._shared_name }}[i_2 + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
@@ -106,6 +104,7 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
       {%- endif %}
     {%- else -%}
       {%- if(arg._is_INC) %}
+      printf("i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] = %d", i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size]);
       {{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}] += {{ arg._local_name() }}[i_2];
       {%- elif(arg._is_MIN) %}
       {{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {(arg._which_indirect}}*set_size] * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
@@ -211,6 +210,7 @@ void {{ parloop._stub_name }}(
   {%- endif %}
   __global short *p_loc_map,
   __global int* p_ind_sizes,
+  __global int* p_cum_ind_sizes,
   __global int* p_ind_offsets,
   __global int* p_blk_map,
   __global int* p_offset,
@@ -225,7 +225,6 @@ void {{ parloop._stub_name }}(
   __local int active_threads_count;
 
   int nbytes;
-  int base_layer_index;
   int block_id;
 
   int i_1;
@@ -318,17 +317,15 @@ void {{ parloop._stub_name }}(
 {%- endfor %}
 
     nbytes = 0;
-    base_layer_index = 0;
 {%- for arg in parloop._unique_indirect_dat_args %}
     {{ arg._shared_name }} = (__local {{ arg.data._cl_type }}*) (&shared[nbytes]);
     nbytes += ROUND_UP({{arg._size_name }} * {{ arg.data.cdim }} * sizeof({{ arg.data._cl_type }}));
 
     {%- if parloop.is_layered %}
     {%- if configuration['dbg'] %}
-    printf("{{arg._base_layer_offset_name}} accessed at index %d\n", base_layer_index);
+    printf("{{arg._base_layer_offset_name}} accessed at index %d\n", p_cum_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}]);
     {%- endif %}
-    {{ arg._base_layer_offset_name }} = &(p_base_layer_offsets[base_layer_index]);
-    base_layer_index += {{ arg._base_layer_size_name }} + 1;
+    {{ arg._base_layer_offset_name }} = &(p_base_layer_offsets[p_cum_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}]]);
     {%- endif %}
 
 {%- endfor %}

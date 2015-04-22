@@ -80,6 +80,7 @@ cdef class _Plan:
     cdef numpy.ndarray _base_layer_offsets
     cdef numpy.ndarray _loc_map
     cdef numpy.ndarray _ind_sizes
+    cdef numpy.ndarray _cum_ind_sizes
     cdef numpy.ndarray _nindirect
     cdef numpy.ndarray _ind_offs
     cdef numpy.ndarray _offset
@@ -109,7 +110,8 @@ cdef class _Plan:
         self._nelems = numpy.array([min(partition_size, iset.size - i * partition_size) for i in range(self._nblocks)],
                                   dtype=numpy.int32)
 
-        print "nblocks: {}, nelems: {}\n".format(self._nblocks, self._nelems)
+        if configuration['dbg']:
+            print "nblocks: {}, nelems: {}\n".format(self._nblocks, self._nelems)
 
         def offset_iter(offset):
             _offset = offset
@@ -250,11 +252,18 @@ cdef class _Plan:
         def size_iter():
             for pi in range(self._nblocks):
                 for dat,map in d.iterkeys():
-                    print "size: {}".format(sizes[(dat, map, pi)])
                     yield sizes[(dat, map, pi)]
                     if layers > 1:
                         yield sizes[(dat, map, pi + self._nblocks)]
         self._ind_sizes = numpy.fromiter(size_iter(), dtype=numpy.int32)
+
+        def cumulative_size_iter():
+            offset = 0
+            for pi in range(self._nblocks):
+                for dat,map in d.iterkeys():
+                    yield offset
+                    offset += sizes[dat, map, pi + self._nblocks] + 1
+        self._cum_ind_sizes = numpy.fromiter(cumulative_size_iter(), dtype=numpy.int32)
 
         def nindirect_iter():
             for dat,map in d.iterkeys():
@@ -274,17 +283,22 @@ cdef class _Plan:
         # and so on.
         # ind_map:          [0, 1, 11, 12, 22, 23, 33, 34]
         # base_layer_offset [0, 11, 11, 22, 22, 33, 33, 33, 44]
-        base_layer_offsets = []
+        base_layer_offsets = {}
         if layers > 1:
+            if configuration['dbg']:
+                print "############### LAYERS: {} ############".format(layers)
             ind_offset = 0
-            for pi in range(self._nblocks):
-                print "pi: {}".format(pi)
-                for dat, map in d.iterkeys():
-                    print "ind_intervals: {}".format(intervals[dat, map, pi])
-                    print "ind_offset: {}, len(inds[dat, map, pi]): {}".format(ind_offset, len(inds[dat, map, pi]))
-                    print "self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])]: {}".format(self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])])
+            map_offset = 0
+            for dat, map in d.iterkeys():
+                for pi in range(self._nblocks):
+                    if configuration['dbg']:
+                        print "dat: {}, map: {}, pi: {}".format(dat, map, pi)
+                        print "ind_intervals: {}".format(intervals[dat, map, pi])
+                        print "ind_offset: {}, len(inds[dat, map, pi]): {}".format(ind_offset, len(inds[dat, map, pi]))
+                        print "sizes[dat, map, pi]: {}".format(sizes[dat, map, pi])
+                        print "self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])]: {}".format(self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])])
                     ind_intervals = intervals[dat, map, pi]
-                    base_layer_offset = [self._ind_map[ind_offset]]
+                    base_layer_offset = [0]
                     curr_interval = 0
                     # Keep track of the visited intervals.
                     visited_intervals = [False] * len(ind_intervals)
@@ -293,31 +307,36 @@ cdef class _Plan:
                         prev = base_layer_offset[-1]
                         # Locate the appropriate interval
                         while ind > ind_intervals[curr_interval][1]:
-                            if configuration['dbg']:
-                                print "Finding interval, curr_interval: {}, bounds: {}".format(curr_interval, ind_intervals[curr_interval])
+                            #if configuration['dbg']:
+                            #    print "Finding interval for ind: {}, curr_interval: {}, bounds: {}".format(ind, curr_interval, ind_intervals[curr_interval])
                             curr_interval += 1
                         # If we have visited the interval before, do not stage
                         # more data. Instead, append the previous value.
                         if visited_intervals[curr_interval]:
-                            if configuration['dbg']:
-                                print "Visited, appending prev: {}".format(prev)
+                            #if configuration['dbg']:
+                            #    print "Visited, appending prev: {}".format(prev)
                             base_layer_offset.append(prev)
                         # If we haven't yet visited the interval, append the
                         # interval length.
                         else:
-                            if configuration['dbg']:
-                                print "Not visited, appending interval len"
+                            #if configuration['dbg']:
+                            #    print "Not visited, appending interval len"
                             base_layer_offset.append(prev + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1))
                             visited_intervals[curr_interval] = True
                     # Update the index into the ind_map
-                    ind_offset += len(inds[dat, map, pi])#map.values.size
+                    ind_offset += len(inds[dat, map, pi])
 
                     if configuration['dbg']:
                         print "base_layer_offset: {}".format(base_layer_offset)
 
-                    base_layer_offsets.append(base_layer_offset)
+                    base_layer_offsets[dat, map, pi] = base_layer_offset
+                map_offset += map.values.size
+                ind_offset = map_offset
 
-        self._base_layer_offsets = numpy.concatenate(base_layer_offsets).astype(numpy.int32) if base_layer_offsets else numpy.array([], dtype=numpy.int32)
+        base_layer_offsets_t = tuple(base_layer_offsets[dat, map, pi]
+                                     for pi in range(self._nblocks)
+                                     for dat, map in d.iterkeys())
+        self._base_layer_offsets = numpy.concatenate(base_layer_offsets_t).astype(numpy.int32) if base_layer_offsets_t else numpy.array([], dtype=numpy.int32)
 
         def off_iter():
             _off = dict()
@@ -575,6 +594,12 @@ cdef class _Plan:
         """2D array of sizes of indirection maps for each block (nblocks x
         nindirect)."""
         return self._ind_sizes
+
+    @property
+    def cum_ind_sizes(self):
+        """2D array of sizes of indirection maps for each block (nblocks x
+        nindirect)."""
+        return self._cum_ind_sizes
 
     @property
     def ind_offs(self):
