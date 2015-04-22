@@ -168,7 +168,6 @@ cdef class _Plan:
 
                 if configuration['dbg']:
                     print "pi: {}, start: {}, end: {}, ii: {}".format(pi, start, end, ii)
-                    print "staged_values: {}".format(staged_values)
 
                 offsets = {}
 
@@ -191,13 +190,16 @@ cdef class _Plan:
                     ind_intervals = []
                     cum_interval_len = [0]
                     curr_interval = 0
+                    if configuration['dbg']:
+                        print "inds[dat, map, pi]: {}\n".format(inds[dat, map, pi])
+                        print "ind_intervals: {}\n".format(ind_intervals)
                     for i, ind in enumerate(inds[dat, map, pi]):
                         # Iterate through the intervals while ind is not within
                         # the bounds.
                         while curr_interval < len(ind_intervals) and ind > ind_intervals[curr_interval][1]:
                             curr_interval += 1
                         # ind is within the interval, so extend the interval to account for the layers from ind.
-                        if curr_interval < len(ind_intervals) and ind_intervals[curr_interval][1] > ind:
+                        if curr_interval < len(ind_intervals) and ind_intervals[curr_interval][1] >= ind:
                             ind_intervals[curr_interval][1] = max(ind + offsets[ind] * (layers - 1), ind_intervals[curr_interval][1])
                         # ind is outside the interval, so create a new
                         # interval. Append an element to the cumulative length.
@@ -207,6 +209,10 @@ cdef class _Plan:
                         # Extend the cumulative interval lengths to account for
                         # the index.
                         cum_interval_len[curr_interval + 1] = cum_interval_len[curr_interval] + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0] + 1)
+
+                    if configuration['dbg']:
+                        print "cum_interval_len: {}\n".format(cum_interval_len)
+                        print "ind_intervals: {}\n".format(ind_intervals)
 
                     # Calculate inverse map.
                     inv = []
@@ -227,6 +233,9 @@ cdef class _Plan:
 
                     # Store the normal base layer size offset into sizes.
                     sizes[dat, map, pi + self._nblocks] = len(inds[dat, map, pi])
+
+                    if configuration['dbg']:
+                        print "sizes: {}, {}".format(sizes[(dat, map, pi)], sizes[(dat, map, pi + self._nblocks)])
 
                     intervals[dat, map, pi] = ind_intervals
 

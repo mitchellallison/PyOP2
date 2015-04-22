@@ -21,20 +21,20 @@
     int layer_count = {{ arg._base_layer_offset_name }}[index + 1] - {{ arg._base_layer_offset_name }}[index];
     {%- if configuration['dbg'] %}
     if (get_local_id(0) == 0) {
-      printf("\n");
-      printf("{{ arg._base_layer_offset_name }}[index]: %d, {{ arg._base_layer_offset_name }}[index + 1]: %d\n", {{ arg._base_layer_offset_name }}[index], {{ arg._base_layer_offset_name }}[index + 1]);
-      printf("layer_count: %d, shared_offset: %d\n", layer_count, shared_offset);
-      printf("index: %d, offset: %d, next offset: %d\n", index, shared_offset, {{ arg._base_layer_offset_name }}[index + 1]);
-      printf("Size of shared: %d, Size of base: %d\n", {{ arg._size_name }}, {{ arg._base_layer_size_name }});
+      printf("block_id: %d, {{ arg._base_layer_offset_name }}[index]: %d, {{ arg._base_layer_offset_name }}[index + 1]: %d\n", block_id, {{ arg._base_layer_offset_name }}[index], {{ arg._base_layer_offset_name }}[index + 1]);
+      printf("block_id: %d, layer_count: %d, shared_offset: %d\n", block_id, layer_count, shared_offset);
+      printf("block_id: %d, index: %d, offset: %d, next offset: %d\n", block_id, index, shared_offset, {{ arg._base_layer_offset_name }}[index + 1]);
+      printf("block_id: %d, Size of shared: %d, Size of base: %d\n", block_id, {{ arg._size_name }}, {{ arg._base_layer_size_name }});
     }
     {%- endif %}
     for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
     {%- if configuration['dbg'] %}
-      printf("Layer %d of %d\n", layer, layer_count);
-      printf("Index into %s: %d\n", "{{arg._shared_name}}", i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{arg.data.cdim}});
-      printf("Value: %f\n", {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}]);
+      printf("block_id: %d, Starting layer %d of %d, Index into %s: %d, value: %f\n", block_id, layer, layer_count, "{{arg._shared_name}}", i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{arg.data.cdim}}, {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}]);
     {%- endif %}
       {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}] = {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}];
+    {%- if configuration['dbg'] %}
+      printf("block_id: %d, Ending layer %d of %d\n", block_id, layer, layer_count);
+    {%- endif %}
     }
     barrier(CLK_LOCAL_MEM_FENCE);
   }
