@@ -61,6 +61,8 @@ def pytest_cmdline_preparse(config, args):
         args.insert(0, '--lazy')
     if 'PYTEST_GREEDY' in os.environ:
         args.insert(0, '--greedy')
+    if 'PYTEST_GEN_EXTR_DATA' in os.environ:
+        args.insert(0, '--generate_extr_data')
 
 
 def pytest_addoption(parser):
@@ -68,6 +70,7 @@ def pytest_addoption(parser):
                      help="Selection the backend: one of %s" % backends.keys())
     parser.addoption("--lazy", action="store_true", help="Only run lazy mode")
     parser.addoption("--greedy", action="store_true", help="Only run greedy mode")
+    parser.addoption("--generate_extr_data", action="store_true", default=False, help="Generate test data for test_opencl_extrusion.")
 
 
 def pytest_collection_modifyitems(items):
@@ -173,6 +176,13 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize('backend', params or [(None, None)], indirect=True,
                              ids=['-'.join(p) for p in params])
 
+    if 'discretisation' in metafunc.fixturenames:
+        if hasattr(metafunc.module, 'discretisations'):
+            discretisations = set(metafunc.module.discretisations)
+            discretisation_pairs = [(a, b) for a in discretisations
+                                           for b in discretisations]
+            metafunc.parametrize('discretisation', discretisation_pairs,
+                                 ids=["{}{}-{}{}".format(f, d, vf, vd) for ((f, d), (vf, vd)) in discretisation_pairs])
 
 @pytest.fixture(scope='session')
 def backend(request):
@@ -184,3 +194,7 @@ def backend(request):
     except:
         pytest.skip('Backend %s is not available' % backend)
     return backend
+
+@pytest.fixture()
+def generate_extr_data(request):
+    return request.config.getoption('generate_extr_data')
