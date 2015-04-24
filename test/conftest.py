@@ -180,9 +180,10 @@ def pytest_generate_tests(metafunc):
         if hasattr(metafunc.module, 'discretisations'):
             discretisations = set(metafunc.module.discretisations)
             discretisation_pairs = [(a, b) for a in discretisations
-                                           for b in discretisations]
+                                    for b in discretisations]
             metafunc.parametrize('discretisation', discretisation_pairs,
                                  ids=["{}{}-{}{}".format(f, d, vf, vd) for ((f, d), (vf, vd)) in discretisation_pairs])
+
 
 @pytest.fixture(scope='session')
 def backend(request):
@@ -194,6 +195,7 @@ def backend(request):
     except:
         pytest.skip('Backend %s is not available' % backend)
     return backend
+
 
 @pytest.fixture()
 def generate_extr_data(request):

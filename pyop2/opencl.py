@@ -401,7 +401,7 @@ class Plan(plan.Plan):
         if not hasattr(self, '_ind_sizes_array'):
             self._ind_sizes_array = array.to_device(_queue, super(Plan, self).ind_sizes)
         return self._ind_sizes_array
-    
+
     @property
     def cum_ind_sizes(self):
         if not hasattr(self, '_cum_ind_sizes_array'):
@@ -752,7 +752,8 @@ class ParLoop(device.ParLoop):
             args.append(0)
 
             if configuration['dbg']:
-                from IPython import embed; embed()
+                from IPython import embed
+                embed()
 
             for i in range(_plan.ncolors):
                 blocks_per_grid = int(_plan.ncolblk[i])
