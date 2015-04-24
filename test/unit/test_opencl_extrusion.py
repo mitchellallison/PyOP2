@@ -13,6 +13,12 @@ backends = ['opencl', 'sequential']
 discretisations = (('CG', 1), ('CG', 2), ('DG', 0), ('DG', 1), ('DG', 2))
 
 
+def setup_module(module):
+    directory = os.path.join(os.path.dirname(__file__), '../data/')
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
 def compare_results(expected, actual, epsilon):
     delta = expected - actual
     max_delta = numpy.max(numpy.abs(delta))
@@ -49,10 +55,8 @@ class TestOpenCLExtrusion:
 
         file_name = os.path.join(os.path.dirname(__file__), '../data/simple-{}.npy'.format(name))
         if generate_extr_data:
-            open(file_name, 'w')
             numpy.save(file_name, f.dat.data)
         else:
-            open(file_name, 'r')
             compare_results(numpy.load(file_name), f.dat.data, 0)
 
     def test_extruded_simple_kernel_coords(self, backend, discretisation, mesh, generate_extr_data):
@@ -75,10 +79,8 @@ class TestOpenCLExtrusion:
 
         file_name = os.path.join(os.path.dirname(__file__), '../data/simple-coords-{}.npy'.format(name))
         if generate_extr_data:
-            open(file_name, 'w')
             numpy.save(file_name, mesh.coordinates.dat.data)
         else:
-            open(file_name, 'r')
             compare_results(numpy.load(file_name), mesh.coordinates.dat.data, 0)
 
     def test_extruded_simple_kernel_vector_function_spaces(self, backend, discretisation, mesh, generate_extr_data):
@@ -104,10 +106,8 @@ class TestOpenCLExtrusion:
 
         file_name = os.path.join(os.path.dirname(__file__), '../data/simple-vectorfs-{}.npy'.format(name))
         if generate_extr_data:
-            open(file_name, 'w')
             numpy.save(file_name, f.dat.data)
         else:
-            open(file_name, 'r')
             compare_results(numpy.load(file_name), f.dat.data, 0)
 
     def test_extruded_simple_kernel_rhs_assembly(self, backend, discretisation, mesh, generate_extr_data):
@@ -121,8 +121,6 @@ class TestOpenCLExtrusion:
 
         file_name = os.path.join(os.path.dirname(__file__), '../data/rhs-{}.npy'.format(name))
         if generate_extr_data:
-            open(file_name, 'w')
             numpy.save(file_name, f.dat.data)
         else:
-            open(file_name, 'r')
             compare_results(numpy.load(file_name), f.dat.data, 1e-17)

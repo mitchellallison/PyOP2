@@ -24,6 +24,7 @@ pyop2.log
 .pytest-incremental
 .tox
 .vagrant
+test/data/*
 
 # Meshes
 *.edge
