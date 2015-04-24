@@ -354,7 +354,10 @@ cdef class _Plan:
             for pi in range(self._nblocks):
                 for dat, map in d.iterkeys():
                     yield _off[dat, map]
-                    _off[dat, map] += sizes[dat, map, pi + self._nblocks]
+                    if layers > 1:
+                        _off[dat, map] += sizes[dat, map, pi + self._nblocks]
+                    else:
+                        _off[dat, map] += sizes[dat, map, pi]
         self._ind_offs = numpy.fromiter(off_iter(), dtype=numpy.int32)
 
         # max shared memory required by work groups
