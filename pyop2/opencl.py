@@ -693,7 +693,7 @@ class ParLoop(device.ParLoop):
 
         fun = JITModule(self.kernel, self.it_space, *self.args, parloop=self, conf=conf)
 
-        with timed_region("to_device"):
+        with timed_region("To Device"):
             args = []
             for arg in self._unique_args:
                 arg.data._allocate_device()

@@ -71,6 +71,7 @@ def pytest_addoption(parser):
     parser.addoption("--lazy", action="store_true", help="Only run lazy mode")
     parser.addoption("--greedy", action="store_true", help="Only run greedy mode")
     parser.addoption("--generate_extr_data", action="store_true", default=False, help="Generate test data for test_opencl_extrusion.")
+    parser.addoption("--profile", action="store", default=None, help="Profiles the test and stores data under the following heading.")
 
 
 def pytest_collection_modifyitems(items):
@@ -200,3 +201,8 @@ def backend(request):
 @pytest.fixture()
 def generate_extr_data(request):
     return request.config.getoption('generate_extr_data')
+
+
+@pytest.fixture()
+def profile(request):
+    return request.config.getoption('profile')
