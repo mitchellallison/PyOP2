@@ -693,34 +693,35 @@ class ParLoop(device.ParLoop):
 
         fun = JITModule(self.kernel, self.it_space, *self.args, parloop=self, conf=conf)
 
-        args = []
-        for arg in self._unique_args:
-            arg.data._allocate_device()
-            if arg.access is not device.WRITE:
-                arg.data._to_device()
+        with timed_region("to_device"):
+            args = []
+            for arg in self._unique_args:
+                arg.data._allocate_device()
+                if arg.access is not device.WRITE:
+                    arg.data._to_device()
 
-        for a in self._unique_dat_args:
-            args.append(a.data.array.data)
+            for a in self._unique_dat_args:
+                args.append(a.data.array.data)
 
-        for a in self._all_global_non_reduction_args:
-            args.append(a.data._array.data)
+            for a in self._all_global_non_reduction_args:
+                args.append(a.data._array.data)
 
-        for a in self._all_global_reduction_args:
-            a.data._allocate_reduction_array(conf['work_group_count'])
-            args.append(a.data._d_reduc_array.data)
+            for a in self._all_global_reduction_args:
+                a.data._allocate_reduction_array(conf['work_group_count'])
+                args.append(a.data._d_reduc_array.data)
 
-        for cst in Const._definitions():
-            args.append(cst._array.data)
+            for cst in Const._definitions():
+                args.append(cst._array.data)
 
-        for m in self._unique_matrix:
-            args.append(m._dev_array.data)
-            m._to_device()
-            args.append(m._rowptr.data)
-            args.append(m._colidx.data)
+            for m in self._unique_matrix:
+                args.append(m._dev_array.data)
+                m._to_device()
+                args.append(m._rowptr.data)
+                args.append(m._colidx.data)
 
-        for m in self._matrix_entry_maps:
-            m._to_device()
-            args.append(m._device_values.data)
+            for m in self._matrix_entry_maps:
+                m._to_device()
+                args.append(m._device_values.data)
 
         if self._is_direct:
             args.append(np.int32(part.size))
@@ -751,15 +752,14 @@ class ParLoop(device.ParLoop):
             block_offset = 0
             args.append(0)
 
-            if configuration['dbg']:
-                from IPython import embed
-                embed()
-
             for i in range(_plan.ncolors):
                 blocks_per_grid = int(_plan.ncolblk[i])
                 threads_per_block = min(_max_work_group_size, conf['partition_size'])
                 thread_count = threads_per_block * blocks_per_grid
                 args[-1] = np.int32(block_offset)
+                if configuration['dbg']:
+                    from IPython import embed
+                    embed()
                 fun(int(thread_count), int(threads_per_block), *args)
                 block_offset += blocks_per_grid
 
