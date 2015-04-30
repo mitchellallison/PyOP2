@@ -29,7 +29,7 @@
     {%- endif %}
     for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
     {%- if configuration['dbg'] %}
-      printf("block_id: %d, Starting layer %d of %d, Index into %s: %d, value: %f\n", block_id, layer, layer_count, "{{arg._shared_name}}", i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{arg.data.cdim}}, {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}]);
+      printf("block_id: %d, Starting layer %d of %d, Index into %s: %d, value: %d\n", block_id, layer, layer_count, "{{arg._shared_name}}", i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{arg.data.cdim}}, {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}]);
     {%- endif %}
       {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}] = {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}];
     {%- if configuration['dbg'] %}
@@ -91,7 +91,6 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 {%- endmacro -%}
 
 {%- macro color_reduction(arg) -%}
-printf("WHAT");
 for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
     {%- if parloop.is_layered %}
       {%- if(arg._is_INC) -%}
@@ -152,7 +151,15 @@ for (i_1 = 0; i_1 < {{ arg._base_layer_size_name}} * {{ arg.data.cdim }}; i_1++)
   int shared_offset = {{ arg._base_layer_offset_name }}[index];
   int layer_count = {{ arg._base_layer_offset_name }}[index + 1] - {{ arg._base_layer_offset_name }}[index];
   for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
+  {%- if(arg._is_INC) -%}
     {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}];
+  {%- elif(arg._is_MAX) -%}
+    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] = max({{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}], {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}]);
+  {%- elif(arg._is_MIN) -%}
+    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] = min({{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}], {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}]);
+  {%- elif(arg._is_WRITE) -%}
+    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] = {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}];
+  {%- endif %}
   }
 }
 {%- else %}
@@ -319,11 +326,14 @@ void {{ parloop._stub_name }}(
     nbytes = 0;
 {%- for arg in parloop._unique_indirect_dat_args %}
     {{ arg._shared_name }} = (__local {{ arg.data._cl_type }}*) (&shared[nbytes]);
+    {%- if configuration['dbg'] %}
+    printf("block_id: %d, {{ arg._shared_name }} accessed shared at: %d\n", block_id, nbytes);
+    {%- endif %}
     nbytes += ROUND_UP({{arg._size_name }} * {{ arg.data.cdim }} * sizeof({{ arg.data._cl_type }}));
 
     {%- if parloop.is_layered %}
     {%- if configuration['dbg'] %}
-    printf("{{arg._base_layer_offset_name}} accessed at index %d\n", p_cum_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}]);
+    printf("block_id: %d, {{arg._base_layer_offset_name}} accessed at index %d\n", block_id, p_cum_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}]);
     {%- endif %}
     {{ arg._base_layer_offset_name }} = &(p_base_layer_offsets[p_cum_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}]]);
     {%- endif %}
