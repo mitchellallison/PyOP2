@@ -28,7 +28,6 @@ def compare_results(expected, actual, epsilon):
 
 
 def log_profiling(profile, test_name):
-    print profile
     if profile is not None:
         attributes = {}
         timers = profiling.get_timers()
@@ -45,16 +44,12 @@ def write_profile_log_file(test_name, attributes):
 
     timers = ['Profile', 'To Device', 'ParLoop kernel', 'Runtime']
 
-    timer_times = map(lambda x: "{},".format(attributes[x] if x in attributes else 0), timers)
-    print_format = "{:<30}" * len(timer_times) + "\n"
-    output = print_format.format(*timer_times)
-
-    timer_headers = map(lambda x: "{},".format(x), timers)
+    timer_times = ", ".join(map(lambda x: repr(attributes[x] if x in attributes else 0), timers))
+    output = timer_times + '\n'
 
     with open(os.path.join(directory, test_name), 'a') as log_file:
         if log_file.tell() == 0:
-            header = print_format.format(*timer_headers)
-            log_file.write(header)
+            log_file.write(",".join(timers) + '\n')
         log_file.write(output)
 
 
