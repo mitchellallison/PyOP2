@@ -53,8 +53,8 @@ def write_profile_log_file(test_name, attributes):
         log_file.write(output)
 
 
-@pytest.fixture(scope='function', params=[(i, layers) for i in [1, 10] for layers in [10, 40]],
-                ids=["{}x{}-{}".format(i, i, layers) for i in [1, 10] for layers in [10, 40]])
+@pytest.fixture(scope='function', params=[(i, layers) for i in [200] for layers in [100]],
+                ids=["{}x{}-{}".format(i, i, layers) for i in [200] for layers in [100]])
 def mesh(request):
     (i, layers) = request.param
     mesh = UnitSquareMesh(i, i)
@@ -93,10 +93,10 @@ class TestOpenCLExtrusion:
         file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
         if generate_extr_data:
             numpy.save(file_name, f.dat.data)
+        elif profile is not None:
+            log_profiling(profile, test_name)
         else:
             compare_results(numpy.load(file_name), f.dat.data, 0)
-
-        log_profiling(profile, test_name)
 
     def test_extruded_simple_kernel_coords(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
         with profiling.timed_region("Runtime"):
@@ -120,10 +120,10 @@ class TestOpenCLExtrusion:
         file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
         if generate_extr_data:
             numpy.save(file_name, mesh.coordinates.dat.data)
+        elif profile is not None:
+            log_profiling(profile, test_name)
         else:
             compare_results(numpy.load(file_name), mesh.coordinates.dat.data, 0)
-
-        log_profiling(profile, test_name)
 
     def test_extruded_simple_kernel_vector_function_spaces(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
         with profiling.timed_region("Runtime"):
@@ -150,10 +150,10 @@ class TestOpenCLExtrusion:
         file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
         if generate_extr_data:
             numpy.save(file_name, f.dat.data)
+        elif profile is not None:
+            log_profiling(profile, test_name)
         else:
             compare_results(numpy.load(file_name), f.dat.data, 0)
-
-        log_profiling(profile, test_name)
 
     def test_extruded_rhs_assembly(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
         with profiling.timed_region("Runtime"):
@@ -167,7 +167,7 @@ class TestOpenCLExtrusion:
         file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
         if generate_extr_data:
             numpy.save(file_name, f.dat.data)
+        elif profile is not None:
+            log_profiling(profile, test_name)
         else:
             compare_results(numpy.load(file_name), f.dat.data, 1e-17)
-
-        log_profiling(profile, test_name)
