@@ -46,7 +46,10 @@ class Kernel(base.Kernel):
         string of code (C syntax) suitable to GPU execution."""
         ast_handler = ASTKernel(ast)
         ast_handler.plan_gpu()
-        return ast.gencode()
+        if hasattr(ast, "gencode"):
+            return ast.gencode()
+        else:
+            return ast
 
     def __init__(self, code, name, opts={}, include_dirs=[]):
         if self._initialized:

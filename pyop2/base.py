@@ -254,7 +254,7 @@ class Arg(object):
            defined on.
 
         A :class:`MapValueError` is raised if these conditions are not met."""
-        self.data = data
+        self._dat = data
         self._map = map
         self._idx = idx
         self._access = access
@@ -410,21 +410,17 @@ class Arg(object):
         return self._access == MAX
 
     @cached_property
-    @property
     def _is_READ(self):
         return self._access == READ
 
     @cached_property
-    @property
     def _is_WRITE(self):
         return self._access == WRITE
 
     @cached_property
-    @property
     def _is_RW(self):
         return self._access == RW
 
-    @property
     @cached_property
     def _is_direct(self):
         return isinstance(self.data, Dat) and self.map is None
