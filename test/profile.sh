@@ -1,14 +1,13 @@
 #!/bin/bash
 
-if [ $# != 4 ]; then
-  echo "Must provide a test, a discretisation, mesh size and layer size to profile."
+if [ $# != 5 ]; then
+  echo "Must provide a test, a discretisation, mesh size, layer size and iteration count to profile."
 else
   test_name=$1
   discretisation=$2
   mesh_size=$3
   layer_size=$4
-
-  iterations=1
+  iterations=$5
 
   backends=(sequential opencl opencl)
   profile_names=(Sequential OpenCL_CPU OpenCL_GPU)
