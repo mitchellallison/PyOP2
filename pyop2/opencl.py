@@ -564,8 +564,12 @@ class JITModule(base.JITModule):
         for i, arg in enumerate(args):
             fun.set_arg(i, arg)
         with timed_region("ParLoop kernel"):
-            cl.enqueue_nd_range_kernel(_queue, fun, (thread_count,),
-                                       (work_group_size,), g_times_l=False).wait()
+            event = cl.enqueue_nd_range_kernel(_queue, fun, (thread_count,),
+                                               (work_group_size,), g_times_l=False)
+            event.wait()
+            elapsed_time = event.profile.end - event.profile.start
+            queued_time = event.profile.queued - event.profile.submit
+            print "elapsed_time: {}, queued_time: {}\n".format(elapsed_time / 1e9, queued_time / 1e9)
 
 
 class ParLoop(device.ParLoop):
