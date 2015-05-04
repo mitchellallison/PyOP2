@@ -33,3 +33,4 @@ test/profile_data/*
 *.msh
 *.node
 *.geo
+*.nfs*
