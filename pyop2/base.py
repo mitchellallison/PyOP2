@@ -3923,7 +3923,7 @@ class ParLoop(LazyComputation):
         # Only need to do this once, since the kernel "defines" the
         # access descriptors, if they were to have changed, the kernel
         # would be invalid for this par_loop.
-        if not self._kernel._attached_info and hasattr(self._kernel, '_ast') and self._kernel._ast:
+        if hasattr(self._kernel, "_attached_info") and not self._kernel._attached_info and hasattr(self._kernel, '_ast') and self._kernel._ast:
             ast_info = ast_visit(self._kernel._ast, search=ast.FunDecl)
             fundecl = ast_info['search'][ast.FunDecl]
             if len(fundecl) == 1:
