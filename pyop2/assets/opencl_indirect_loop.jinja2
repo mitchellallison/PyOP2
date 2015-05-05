@@ -217,7 +217,9 @@ void {{ parloop._stub_name }}(
   {%- endif %}
   __global short *p_loc_map,
   __global int* p_ind_sizes,
+  {%- if parloop.is_layered %}
   __global int* p_cum_ind_sizes,
+  {%- endif %}
   __global int* p_ind_offsets,
   __global int* p_blk_map,
   __global int* p_offset,
