@@ -10,7 +10,7 @@ import pytest
 
 import numpy
 
-backends = ['opencl', 'sequential']
+backends = ['opencl', 'sequential', 'openmp']
 
 discretisations = (('CG', 1), ('CG', 2), ('DG', 0), ('DG', 1), ('DG', 2))
 
@@ -42,19 +42,19 @@ def write_profile_log_file(test_name, attributes):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    timers = ['Profile', 'To Device', 'ParLoop kernel', 'Runtime']
+    timer_titles = ['Profile', 'Build mesh', 'Plan construction', 'To Device', 'Offsets', 'Linear search', 'Extend', 'Inverse map', 'ParLoop kernel']
 
-    timer_times = ", ".join(map(lambda x: repr(attributes[x] if x in attributes else 0), timers))
+    timer_times = ", ".join(map(lambda x: repr(attributes[x] if x in attributes else 0), timer_titles))
     output = timer_times + '\n'
 
     with open(os.path.join(directory, test_name), 'a') as log_file:
         if log_file.tell() == 0:
-            log_file.write(",".join(timers) + '\n')
+            log_file.write(",".join(timer_titles) + '\n')
         log_file.write(output)
 
 
-@pytest.fixture(scope='function', params=[(i, layers) for i in [100, 200, 500] for layers in [90]],
-                ids=["{}x{}-{}".format(i, i, layers) for i in [100, 200, 500] for layers in [90]])
+@pytest.fixture(scope='function', params=[(i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 60]],
+                ids=["{}x{}-{}".format(i, i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 60]])
 def mesh(request):
     (i, layers) = request.param
     mesh = UnitSquareMesh(i, i)
@@ -74,21 +74,20 @@ class TestOpenCLExtrusion:
     """
 
     def test_extruded_simple_kernel(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
-        with profiling.timed_region("Runtime"):
-            ((fam, deg), (vfam, vdeg)) = discretisation
+        ((fam, deg), (vfam, vdeg)) = discretisation
 
-            V = FunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg)
-            name = "%s%dx%s%d" % (fam, deg, vfam, vdeg)
-            f = Function(V)
-            f.assign(10.0)
+        V = FunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg)
+        name = "%s%dx%s%d" % (fam, deg, vfam, vdeg)
+        f = Function(V)
+        f.assign(10.0)
 
-            k = op2.Kernel('''
-            static inline void %(name)s(double* x[%(dim)d]) {
-                for ( int i = 0; i < %(dim)d; i++ ) *x[i] += 1.0;
-            }''' % {'name': name,
-                    'dim': V.cell_node_map().arity}, name=name)
-            op2.par_loop(k, mesh.cell_set,
-                         f.dat(op2.INC, V.cell_node_map()))
+        k = op2.Kernel('''
+        static inline void %(name)s(double* x[%(dim)d]) {
+            for ( int i = 0; i < %(dim)d; i++ ) *x[i] += 1.0;
+        }''' % {'name': name,
+                'dim': V.cell_node_map().arity}, name=name)
+        op2.par_loop(k, mesh.cell_set,
+                     f.dat(op2.INC, V.cell_node_map()))
 
         file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
         if generate_extr_data:
@@ -99,23 +98,22 @@ class TestOpenCLExtrusion:
             compare_results(numpy.load(file_name), f.dat.data, 0)
 
     def test_extruded_simple_kernel_coords(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
-        with profiling.timed_region("Runtime"):
-            ((fam, deg), (vfam, vdeg)) = discretisation
+        ((fam, deg), (vfam, vdeg)) = discretisation
 
-            name = "%s%dx%s%d" % (fam, deg, vfam, vdeg)
+        name = "%s%dx%s%d" % (fam, deg, vfam, vdeg)
 
-            k = op2.Kernel('''
-            static inline void %(name)s(double** x) {
-                for ( int i = 0; i < %(dim)d; i++ ) {
-                    x[i][0] += 1.0;
-                    x[i][1] += 1.0;
-                    x[i][2] += 1.0;
-                }
-            }''' % {'name': name,
-                    'dim': mesh.coordinates.cell_node_map().arity}, name=name)
+        k = op2.Kernel('''
+        static inline void %(name)s(double** x) {
+            for ( int i = 0; i < %(dim)d; i++ ) {
+                x[i][0] += 1.0;
+                x[i][1] += 1.0;
+                x[i][2] += 1.0;
+            }
+        }''' % {'name': name,
+                'dim': mesh.coordinates.cell_node_map().arity}, name=name)
 
-            op2.par_loop(k, mesh.cell_set,
-                         mesh.coordinates.dat(op2.INC, mesh.coordinates.cell_node_map()))
+        op2.par_loop(k, mesh.cell_set,
+                     mesh.coordinates.dat(op2.INC, mesh.coordinates.cell_node_map()))
 
         file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
         if generate_extr_data:
@@ -123,29 +121,28 @@ class TestOpenCLExtrusion:
         elif profile is not None:
             log_profiling(profile, test_name)
         else:
-            compare_results(numpy.load(file_name), mesh.coordinates.dat.data, 0)
+            compare_results(numpy.load(file_name), mesh.coordinates.dat.data, 1e-14)
 
     def test_extruded_simple_kernel_vector_function_spaces(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
-        with profiling.timed_region("Runtime"):
-            ((fam, deg), (vfam, vdeg)) = discretisation
+        ((fam, deg), (vfam, vdeg)) = discretisation
 
-            V = VectorFunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg, dim=3)
-            name = "%s%dx%s%d" % (fam, deg, vfam, vdeg)
-            f = Function(V)
-            f.assign(10.0)
+        V = VectorFunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg, dim=3)
+        name = "%s%dx%s%d" % (fam, deg, vfam, vdeg)
+        f = Function(V)
+        f.assign(10.0)
 
-            k = op2.Kernel('''
-            static inline void %(name)s(double** x) {
-                for ( int i = 0; i < %(dim)d; i++ ) {
-                    x[i][0] += 1.0;
-                    x[i][1] += 1.0;
-                    x[i][2] += 1.0;
-                }
-            }''' % {'name': name,
-                    'dim': V.cell_node_map().arity}, name=name)
+        k = op2.Kernel('''
+        static inline void %(name)s(double** x) {
+            for ( int i = 0; i < %(dim)d; i++ ) {
+                x[i][0] += 1.0;
+                x[i][1] += 1.0;
+                x[i][2] += 1.0;
+            }
+        }''' % {'name': name,
+                'dim': V.cell_node_map().arity}, name=name)
 
-            op2.par_loop(k, mesh.cell_set,
-                         f.dat(op2.INC, V.cell_node_map()))
+        op2.par_loop(k, mesh.cell_set,
+                     f.dat(op2.INC, V.cell_node_map()))
 
         file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
         if generate_extr_data:
@@ -156,13 +153,12 @@ class TestOpenCLExtrusion:
             compare_results(numpy.load(file_name), f.dat.data, 0)
 
     def test_extruded_rhs_assembly(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
-        with profiling.timed_region("Runtime"):
-            ((fam, deg), (vfam, vdeg)) = discretisation
+        ((fam, deg), (vfam, vdeg)) = discretisation
 
-            V = FunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg)
-            v = TestFunction(V)
-            rhs = v * dx
-            f = assemble(rhs)
+        V = FunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg)
+        v = TestFunction(V)
+        rhs = v * dx
+        f = assemble(rhs)
 
         file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
         if generate_extr_data:
