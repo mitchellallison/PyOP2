@@ -9,9 +9,9 @@ else
   layer_size=$4
   iterations=$5
 
-  backends=(sequential opencl opencl)
-  profile_names=(Sequential OpenCL_CPU OpenCL_GPU)
-  machines=(edge02 edge02 graphic06)
+  backends=(sequential openmp opencl opencl)
+  profile_names=(Sequential OpenMP OpenCL_CPU OpenCL_GPU)
+  machines=(pixel01 pixel01 pixel01 graphic02)
   execution_types=(greedy lazy)
 
   for i in "${!backends[@]}"; do
@@ -22,7 +22,7 @@ else
       selected_test="$test_name[$backend-$execution_type-$discretisation-$mesh_size-$layer_size]"
       echo "### Profiling $profile_name, using backend $backend on $machine ###"
       for (( i=0; i < $iterations; i++ )); do
-        echo "PYOPENCL_CTX=0 py.test -v /homes/mka211/Documents/IndividualProject/PyOP2/test/unit/test_opencl_extrusion.py --backend=$backend -k $selected_test --profile=$profile_name -sx" | ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $machine bash -l;
+        echo "PYOP2_PROFILING=1 PYOPENCL_CTX=0 py.test -v /homes/mka211/Documents/IndividualProject/PyOP2/test/unit/test_opencl_extrusion.py --backend=$backend -k $selected_test --profile=$profile_name -sx" | ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $machine bash -l;
       done
     done
   done
