@@ -569,7 +569,7 @@ class JITModule(base.JITModule):
             event.wait()
             elapsed_time = event.profile.end - event.profile.start
             queued_time = event.profile.queued - event.profile.submit
-            print "elapsed_time: {}, queued_time: {}\n".format(elapsed_time / 1e9, queued_time / 1e9)
+            #print "elapsed_time: {}, queued_time: {}\n".format(elapsed_time / 1e9, queued_time / 1e9)
 
 
 class ParLoop(device.ParLoop):
@@ -681,12 +681,12 @@ class ParLoop(device.ParLoop):
         conf['subset'] = isinstance(part.set, Subset)
 
         if self._is_indirect:
-            layers = self.layer_arg[0] - 1 if self.is_layered else 1
+            extruded_layers = self.layer_arg[0] - 1 if self.is_layered else None
             _plan = Plan(part,
                          *self._unwound_args,
                          partition_size=conf['partition_size'],
                          matrix_coloring=self._requires_matrix_coloring,
-                         layers=layers)
+                         extruded_layers=extruded_layers)
             conf['local_memory_size'] = _plan.nshared
             conf['ninds'] = _plan.ninds
             conf['work_group_size'] = min(_max_work_group_size,
@@ -741,11 +741,12 @@ class ParLoop(device.ParLoop):
                 part.set._allocate_device()
                 args.append(part.set._device_data.data)
             args.append(_plan.ind_map.data)
-            if layers > 1:
+            if extruded_layers is not None:
                 args.append(_plan.base_layer_offsets.data)
             args.append(_plan.loc_map.data)
             args.append(_plan.ind_sizes.data)
-            args.append(_plan.cum_ind_sizes.data)
+            if extruded_layers is not None:
+                args.append(_plan.cum_ind_sizes.data)
             args.append(_plan.ind_offs.data)
             args.append(_plan.blkmap.data)
             args.append(_plan.offset.data)
