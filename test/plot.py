@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 import sys
 import os
 
@@ -24,6 +24,6 @@ figure = grouped_profile_data.mean().plot(kind='bar', stacked=True).get_figure()
 figure.savefig(os.path.join(graph_dir, "{}_runtime_comparison.pdf".format(file_name)))
 
 # Without runtime
-grouped_profile_data_without_runtime = data.drop('Runtime', 1).groupby('Profile')
-figure = grouped_profile_data_without_runtime.mean().plot(kind='bar', stacked=True).get_figure()
+parloop_profile_data = data['ParLoop kernel'].groupby('Profile')
+figure = parloop_profile_data.mean().plot(kind='bar', stacked=True).get_figure()
 figure.savefig(os.path.join(graph_dir, "{}_parloop_comparison.pdf".format(file_name)))
