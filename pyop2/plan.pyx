@@ -99,11 +99,14 @@ cdef class _Plan:
                  extruded_layers=None, **kwargs):
         assert partition_size > 0, "partition size must be strictly positive"
 
-        self._compute_partition_info(iset, partition_size, matrix_coloring, args)
+        with timed_region("Partitioning"):
+            self._compute_partition_info(iset, partition_size, matrix_coloring, args)
         if staging:
-            self._compute_staging_info(iset, partition_size, matrix_coloring, extruded_layers, args)
+            with timed_region("Staging"):
+                self._compute_staging_info(iset, partition_size, matrix_coloring, extruded_layers, args)
 
-        self._compute_coloring(iset, partition_size, matrix_coloring, thread_coloring, args)
+        with timed_region("Coloring"):
+            self._compute_coloring(iset, partition_size, matrix_coloring, thread_coloring, args)
 
     def _compute_partition_info(self, iset, partition_size, matrix_coloring, args):
         self._nblocks = int(math.ceil(iset.size / float(partition_size)))

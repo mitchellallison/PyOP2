@@ -42,7 +42,7 @@ def write_profile_log_file(test_name, attributes):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    timer_titles = ['Profile', 'Build mesh', 'Plan construction', 'To Device', 'Offsets', 'Linear search', 'Extend', 'Inverse map', 'ParLoop kernel']
+    timer_titles = ['Profile', 'Plan construction', 'Partitioning', 'Staging', 'Coloring', 'To Device', 'ParLoop kernel']
 
     timer_times = ", ".join(map(lambda x: repr(attributes[x] if x in attributes else 0), timer_titles))
     output = timer_times + '\n'
