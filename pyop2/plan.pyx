@@ -35,6 +35,7 @@
 Cython implementation of the Plan construction.
 """
 
+import sys
 import base
 from profiling import timed_region
 from utils import align, as_tuple
@@ -223,13 +224,8 @@ cdef class _Plan:
                         # Calculate inverse map.
                         inv = []
                         for _, arr in enumerate(staged_values):
-                            # Perform a binary search through the intervals to
-                            # find the interval (and its index) which the value
-                            # exists in. As each array within staged_values
-                            # monotonically increases, retain the left pivot
-                            # as an optimisation.
-                            left = 0
                             for _, val in enumerate(arr):
+                                left = 0
                                 right = len(ind_intervals) - 1
                                 while True:
                                     i = ((right + left) / 2)
