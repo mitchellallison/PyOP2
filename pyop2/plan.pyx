@@ -224,8 +224,17 @@ cdef class _Plan:
                         # Calculate inverse map.
                         inv = []
                         for _, arr in enumerate(staged_values):
+                            # Perform a binary search through the intervals to
+                            # find the interval (and its index) which the value
+                            # exists in. If the next value in staged_values is larger
+                            # than the previous, retain the left pivot
+                            # as an optimisation.
+                            left = 0
+                            prev = -1
                             for _, val in enumerate(arr):
-                                left = 0
+                                if val < prev:
+                                    left = 0
+                                prev = val
                                 right = len(ind_intervals) - 1
                                 while True:
                                     i = ((right + left) / 2)
