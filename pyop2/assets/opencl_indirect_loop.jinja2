@@ -59,7 +59,11 @@
   {%- if arg._flatten %}
     {%- for j in range(arg.data.dataset.cdim) %}
       {%- for i in range(arg.map.arity) %}
+      {%- if parloop.is_layered %}
+{{ arg._vec_name }}[{{ j * arg.map.arity + i }}] += (offset * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }} + {{ j }};
+      {%- else %}
 {{ arg._vec_name }}[{{ j * arg.map.arity + i }}] = {{ arg._shared_name }} + (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }} + {{ j }};
+      {%- endif %}
 {%- if configuration['dbg'] %}
   printf("index into shared = %d\n", (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }} + {{ j }});
   printf("{{ arg._vec_name }}[{{ j * arg.map.arity + i }}][0] = %f\n", {{ arg._vec_name }}[{{ j * arg.map.arity + i }}][0]);
@@ -69,7 +73,7 @@
   {%- else %}
     {%- for i in range(arg.map.arity) %}
     {%- if parloop.is_layered %}
-{{ arg._vec_name }}[{{ i }}] = {{ arg._shared_name }} + (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }};
+{{ arg._vec_name }}[{{ i }}] += (offset * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }};
     {%- else %}
 {{ arg._vec_name }}[{{ i }}] = {{ arg._shared_name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }};
     {%- endif %}
@@ -94,7 +98,6 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
     {%- if parloop.is_layered %}
       {%- if(arg._is_INC) -%}
-      printf("i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] = %d", i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size]);
       {{ arg._shared_name }}[i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] += {{ arg._local_name() }}[i_2];
       {%- elif(arg._is_MIN) %}
       {{ arg._shared_name }}[i_2 + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
@@ -369,12 +372,26 @@ void {{ parloop._stub_name }}(
 {% endif %}
 
 {%- if(parloop._requires_coloring) %}
+  {%- if(parloop.is_layered) %}
+  for (i_1 = 0; i_1 < active_threads_count; i_1++) {
+    {{ extruded_vec_setup() }}
+    for (int red_black_color = 0; red_black_color < 2; red_black_color++) {
+    {%- if configuration['dbg'] %}
+    printf("ceiling: %d\n", active_threads_count_ceiling);
+    {%- endif %}
+    for (int layer = (get_local_id(0) * 2) + red_black_color, thread_block_height = 0; thread_block_height < {{ parloop.layer_arg[0] - 1 }}; layer += get_local_size(0) * 2, thread_block_height += get_local_size(0) * 2) {
+      color_2 = -1;
+      int offset = min(layer, ((int)get_local_size(0) * 2));
+    {%- if configuration['dbg'] %}
+      printf("offset: %d\n", offset);
+    {%- endif %}
+      if (layer < {{ parloop.layer_arg[0] - 1 }}) {
+  {%- else %}
   for (i_1 = get_local_id(0); i_1 < active_threads_count_ceiling; i_1 += get_local_size(0)) {
     color_2 = -1;
-    {%- if(parloop.is_layered) %}
-    for (int layer = 0; layer < {{ parloop.layer_arg[0] - 1 }}; layer++) {
-    {% endif %}
+    for (int layer = 0; layer < {{ parloop.layer_arg[0] - 1 }}; layer++)) {
     if (i_1 < active_threads_count) {
+  {% endif %}
       {%- for arg in parloop._all_inc_indirect_dat_args %}
       {{ staged_arg_local_variable_zeroing(arg) | indent(6) }}
       {%- endfor %}
@@ -402,19 +419,37 @@ void {{ parloop._stub_name }}(
             {{ matrix_insert() }}
         {% endif %}
       }
+      {%- if configuration['dbg'] %}
+      printf("thread %d of %d is waiting at the barrier\n", get_local_id(0), get_local_size(0));
+      {%- endif %}
       barrier(CLK_LOCAL_MEM_FENCE);
+      {%- if configuration['dbg'] %}
+      printf("thread %d is past the barrier\n", get_local_id(0));
+      {%- endif %}
     }
-  {%- if(parloop.is_layered) %}
-  }
-  {%- endif %}
+    {%- if(parloop.is_layered) %}
+    }
+    }
+    {%- endif %}
   }
 {%- else %}
-  for (i_1 = get_local_id(0); i_1 < active_threads_count; i_1 += get_local_size(0)) {
   {%- if(parloop.is_layered) %}
-    for (int layer = 0; layer < {{ parloop.layer_arg[0] - 1 }}; layer++) {
+    for (i_1 = 0; i_1 < active_threads_count; i_1++) {
+    for (int red_black_color = 0; red_black_color < 2; red_black_color++) {
+    {{ extruded_vec_setup() }}
+    for (int layer = (get_local_id(0) * 2) + red_black_color; layer < {{ parloop.layer_arg[0] - 1}}; layer += get_local_size(0) * 2) {
+      int offset = min(layer, ((int)get_local_size(0) * 2));
+    {%- if configuration['dbg'] %}
+      printf("offset: %d, i_1: %d\n", offset, i_1);
+    {%- endif %}
+  {%- else %}
+    for (i_1 = get_local_id(0); i_1 < active_threads_count; i_1 += get_local_size(0)) {
+      for (int layer = 0; layer < {{ parloop.layer_arg[0] - 1 }}; layer++) {
   {%- endif %}
     {{ kernel_call() | indent(6) }}
   {%- if(parloop.is_layered) %}
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
     }
   {%- endif %}
   }
@@ -443,6 +478,33 @@ void {{ parloop._stub_name }}(
 {%- endif %}
 }
 {%- endmacro -%}
+
+{%- macro extruded_vec_setup() -%}
+    {% for arg in parloop._unique_dat_args if(arg._is_vec_map or arg._uses_itspace) %}
+      {%- if(arg._is_indirect_reduction) -%}
+        {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
+      {{ arg._vec_name }}[{{ i }}] = {{ arg._local_name(idx=i) }};
+        {%- endfor -%}
+      {%- else -%}
+        {%- if arg._flatten %}
+          {%- for j in range(arg.data.dataset.cdim) %}
+            {%- for i in range(arg.map.arity) %}
+              {{ arg._vec_name }}[{{ j * arg.map.arity + i }}] = {{ arg._shared_name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }} + {{ j }};
+      {%- if configuration['dbg'] %}
+        printf("index into shared = %d\n", (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }} + {{ j }});
+        printf("{{ arg._vec_name }}[{{ j * arg.map.arity + i }}][0] = %f\n", {{ arg._vec_name }}[{{ j * arg.map.arity + i }}][0]);
+      {%- endif %}
+            {%- endfor -%}
+          {%- endfor -%}
+        {%- else %}
+          {%- for i in range(arg.map.arity) %}
+      {{ arg._vec_name }}[{{ i }}] = {{ arg._shared_name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }};
+          {%- endfor -%}
+        {%- endif -%}
+      {%- endif -%}
+    {%- endfor %}
+{%- endmacro -%}
+  
 
 {#- rewrite: do recursive template -#}
 {%- macro matrix_kernel_call() -%}
