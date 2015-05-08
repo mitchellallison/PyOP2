@@ -25,8 +25,8 @@ pyop2.log
 .tox
 .vagrant
 test/data/*
-test/profile_data/*
-test/profile_graphs/*
+test/profile_data*/*
+test/profile_graphs*/*
 
 # Meshes
 *.edge
