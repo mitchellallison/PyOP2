@@ -53,8 +53,8 @@ def write_profile_log_file(test_name, attributes):
         log_file.write(output)
 
 
-@pytest.fixture(scope='function', params=[(i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 60]],
-                ids=["{}x{}-{}".format(i, i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 60]])
+@pytest.fixture(scope='function', params=[(i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]],
+                ids=["{}x{}-{}".format(i, i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]])
 def mesh(request):
     (i, layers) = request.param
     mesh = UnitSquareMesh(i, i)
