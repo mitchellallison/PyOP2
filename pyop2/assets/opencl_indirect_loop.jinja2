@@ -53,7 +53,9 @@
 // populate vec map
 {%- if(arg._is_indirect_reduction) -%}
   {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
+    {%- if not parloop.is_layered %}
 {{ arg._vec_name }}[{{ i }}] = {{ arg._local_name(idx=i) }};
+    {%- endif %}
   {%- endfor -%}
 {%- else -%}
   {%- if arg._flatten %}
@@ -402,6 +404,10 @@ void {{ parloop._stub_name }}(
       {{ kernel_call() | indent(6) }}
       color_2 = p_thrcol[i_1 + offset_b];
     }
+    {%- if(parloop.is_layered) %}
+    }
+    for (int layer = (get_local_id(0) * 2) + red_black_color, thread_block_height = 0; thread_block_height < {{ parloop.layer_arg[0] - 1 }}; layer += (get_local_size(0) * 2), thread_block_height += (get_local_size(0) * 2)) {
+    {%- endif %}
     for (color_1 = 0; color_1 < colors_count; ++color_1) {
       // should there be a if + barrier pattern for each indirect reduction argument ?
       if (color_2 == color_1) {
