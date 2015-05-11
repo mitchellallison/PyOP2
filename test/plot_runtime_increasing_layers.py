@@ -31,12 +31,11 @@ for layer in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]:
     data = pandas.read_csv(input_file)
 
     # Without runtime
-    parloop_profile_data = data.groupby('Profile')
-    parloop_mean = parloop_profile_data['ParLoop kernel'].mean()
-    df.loc[layer] = parloop_mean[backends].tolist()
+    runtime_mean = data.groupby('Profile').mean().sum(axis=1)
+    df.loc[layer] = runtime_mean[backends].tolist()
 
 plot = df.plot(kind='line')
 plot.set_xlabel('Layer Count')
 plot.set_ylabel('Time (Seconds)')
 figure = plot.get_figure()
-figure.savefig(os.path.join(graph_dir, "{}-{}-{}-parloop-increasing-layers.pdf".format(test_name, discretisation, mesh_size)))
+figure.savefig(os.path.join(graph_dir, "{}-{}-{}-runtime-increasing-layers.pdf".format(test_name, discretisation, mesh_size)))
