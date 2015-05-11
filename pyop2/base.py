@@ -1494,7 +1494,7 @@ class IterationSpace(object):
     def cache_key(self):
         """Cache key used to uniquely identify the object in the cache."""
         return self._extents, self._block_shape, self.iterset._extruded, \
-            isinstance(self._iterset, Subset)
+            isinstance(self._iterset, Subset), self.layers
 
 
 class DataCarrier(Versioned):
