@@ -53,8 +53,8 @@ def write_profile_log_file(test_name, attributes):
         log_file.write(output)
 
 
-@pytest.fixture(scope='function', params=[(i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]],
-                ids=["{}x{}-{}".format(i, i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]])
+@pytest.fixture(scope='function', params=[(i, layers) for i in [100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]],
+                ids=["{}x{}-{}".format(i, i, layers) for i in [100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]])
 def mesh(request):
     (i, layers) = request.param
     mesh = UnitSquareMesh(i, i)
@@ -73,7 +73,7 @@ class TestOpenCLExtrusion:
     OpenCL Extruded Mesh Tests
     """
 
-    def test_extruded_simple_kernel(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
+    def test_extruded_simple_kernel(self, backend, discretisation, mesh, test_name, generate_extr_data, profile, skip_lazy):
         ((fam, deg), (vfam, vdeg)) = discretisation
 
         V = FunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg)
@@ -97,7 +97,7 @@ class TestOpenCLExtrusion:
         else:
             compare_results(numpy.load(file_name), f.dat.data, 0)
 
-    def test_extruded_simple_kernel_coords(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
+    def test_extruded_simple_kernel_coords(self, backend, discretisation, mesh, test_name, generate_extr_data, profile, skip_lazy):
         ((fam, deg), (vfam, vdeg)) = discretisation
 
         name = "%s%dx%s%d" % (fam, deg, vfam, vdeg)
@@ -123,7 +123,7 @@ class TestOpenCLExtrusion:
         else:
             compare_results(numpy.load(file_name), mesh.coordinates.dat.data, 1e-14)
 
-    def test_extruded_simple_kernel_vector_function_spaces(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
+    def test_extruded_simple_kernel_vector_function_spaces(self, backend, discretisation, mesh, test_name, generate_extr_data, profile, skip_lazy):
         ((fam, deg), (vfam, vdeg)) = discretisation
 
         V = VectorFunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg, dim=3)
@@ -152,7 +152,7 @@ class TestOpenCLExtrusion:
         else:
             compare_results(numpy.load(file_name), f.dat.data, 0)
 
-    def test_extruded_rhs_assembly(self, backend, discretisation, mesh, test_name, generate_extr_data, profile):
+    def test_extruded_rhs_assembly(self, backend, discretisation, mesh, test_name, generate_extr_data, profile, skip_lazy):
         ((fam, deg), (vfam, vdeg)) = discretisation
 
         V = FunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg)
