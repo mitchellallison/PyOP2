@@ -689,8 +689,12 @@ class ParLoop(device.ParLoop):
                          extruded_layers=extruded_layers)
             conf['local_memory_size'] = _plan.nshared
             conf['ninds'] = _plan.ninds
-            conf['work_group_size'] = min(_max_work_group_size,
-                                          conf['partition_size'])
+            if self.is_layered:
+                conf['work_group_size'] = min(_max_work_group_size,
+                                              extruded_layers)
+            else:
+                conf['work_group_size'] = min(_max_work_group_size,
+                                              conf['partition_size'])
             conf['work_group_count'] = _plan.nblocks
         conf['warpsize'] = _warpsize
         conf['op2stride'] = self._it_space.size
@@ -759,7 +763,10 @@ class ParLoop(device.ParLoop):
 
             for i in range(_plan.ncolors):
                 blocks_per_grid = int(_plan.ncolblk[i])
-                threads_per_block = min(_max_work_group_size, conf['partition_size'])
+                if extruded_layers is not None:
+                    threads_per_block = min(_max_work_group_size, extruded_layers)
+                else:
+                    threads_per_block = min(_max_work_group_size, conf['partition_size'])
                 thread_count = threads_per_block * blocks_per_grid
                 args[-1] = np.int32(block_offset)
                 if configuration['dbg']:
