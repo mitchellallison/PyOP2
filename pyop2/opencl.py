@@ -838,4 +838,4 @@ _reduction_task_cache = None
 _jinja2_env = Environment(loader=PackageLoader("pyop2", "assets"))
 _jinja2_direct_loop = _jinja2_env.get_template("opencl_direct_loop.jinja2")
 _jinja2_indirect_loop = _jinja2_env.get_template("opencl_indirect_loop.jinja2")
-_jinja2_indirect_extruded_loop = _jinja2_env.get_template("opencl_indirect_extruded_loop.jinja2")
+_jinja2_indirect_extruded_loop = _jinja2_env.get_template("opencl_indirect_extruded_nostaging_loop.jinja2")

@@ -53,8 +53,8 @@ def write_profile_log_file(test_name, attributes):
         log_file.write(output)
 
 
-@pytest.fixture(scope='function', params=[(i, layers) for i in [100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]],
-                ids=["{}x{}-{}".format(i, i, layers) for i in [100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]])
+@pytest.fixture(scope='function', params=[(i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]],
+                ids=["{}x{}-{}".format(i, i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]])
 def mesh(request):
     (i, layers) = request.param
     mesh = UnitSquareMesh(i, i)
@@ -95,6 +95,7 @@ class TestOpenCLExtrusion:
         elif profile is not None:
             log_profiling(profile, test_name)
         else:
+            print f.dat.data
             compare_results(numpy.load(file_name), f.dat.data, 0)
 
     def test_extruded_simple_kernel_coords(self, backend, discretisation, mesh, test_name, generate_extr_data, profile, skip_lazy):
