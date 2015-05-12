@@ -33,7 +33,7 @@ for (i_1 = get_local_id(0); i_1 < {{ arg._size_name }} * {{ arg.data.cdim }}; i_
   {%- if arg._flatten %}
     {%- for j in range(arg.data.dataset.cdim) %}
       {%- for i in range(arg.map.arity) %}
-{{ arg._vec_name }}[{{ j * arg.map.arity + i }}] = {{ arg._shared_name }} + (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }} + {{ j }};
+{{ arg._vec_name }}[{{ j * arg.map.arity + i }}] = {{ arg._shared_name }} + (p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b]) * {{ arg.data.cdim }} + {{ j }};
       {%- endfor -%}
     {%- endfor -%}
   {%- else %}
@@ -274,7 +274,6 @@ void {{ parloop._stub_name }}(
 {%- if(parloop._requires_coloring) %}
   for (i_1 = get_local_id(0); i_1 < active_threads_count_ceiling; i_1 += get_local_size(0)) {
     color_2 = -1;
-    for (int layer = 0; layer < {{ parloop.layer_arg[0] - 1 }}; layer++)) {
     if (i_1 < active_threads_count) {
       {%- for arg in parloop._all_inc_indirect_dat_args %}
       {{ staged_arg_local_variable_zeroing(arg) | indent(6) }}
@@ -314,7 +313,6 @@ void {{ parloop._stub_name }}(
   }
 {%- else %}
     for (i_1 = get_local_id(0); i_1 < active_threads_count; i_1 += get_local_size(0)) {
-      for (int layer = 0; layer < {{ parloop.layer_arg[0] - 1 }}; layer++) {
     {{ kernel_call() | indent(6) }}
   }
 {%- endif %}
