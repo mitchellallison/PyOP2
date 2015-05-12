@@ -541,6 +541,7 @@ class JITModule(base.JITModule):
         # do codegen
         user_kernel = instrument_user_kernel()
         template = _jinja2_direct_loop if self._parloop._is_direct \
+            else _jinja2_indirect_extruded_loop if self._parloop.is_layered \
             else _jinja2_indirect_loop
 
         src = template.render({'parloop': self._parloop,
@@ -837,3 +838,4 @@ _reduction_task_cache = None
 _jinja2_env = Environment(loader=PackageLoader("pyop2", "assets"))
 _jinja2_direct_loop = _jinja2_env.get_template("opencl_direct_loop.jinja2")
 _jinja2_indirect_loop = _jinja2_env.get_template("opencl_indirect_loop.jinja2")
+_jinja2_indirect_extruded_loop = _jinja2_env.get_template("opencl_indirect_loop.jinja2")
