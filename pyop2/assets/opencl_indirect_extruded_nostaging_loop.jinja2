@@ -53,11 +53,11 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 {%- macro color_reduction(arg) -%}
 for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
   {%- if(arg._is_INC) -%}
-  {{ arg.name }}[i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] += {{ arg._local_name() }}[i_2];
+  {{ arg.name }}[i_2 + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] += {{ arg._local_name() }}[i_2];
   {%- elif(arg._is_MIN) %}
-  {{ arg.name }}[i_2 + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = min({{ arg.name }}[i_2 + (i_1 + offset_b + {{arg._which_indirect}}*set_size) * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
+  {{ arg.name }}[i_2 + (p_ind_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = min({{ arg.name }}[i_2 + (i_1 + offset_b + {{arg._which_indirect}}*set_size) * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
   {%- elif(arg._is_MAX) %}
-  {{ arg.name }}[i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = max({{ arg.name }}[i_2 + (i_1 + offset_b + {{arg._which_indirect}}*set_size) * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
+  {{ arg.name }}[i_2 + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = max({{ arg.name }}[i_2 + (i_1 + offset_b + {{arg._which_indirect}}*set_size) * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
   {%- endif %}
 }
 {%- endmacro -%}
@@ -71,14 +71,14 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
     {%- set offs = 'i_2' %}
     {%- endif %}
       {%- if(arg._is_INC) %}
-    {{ arg.name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
+    {{ arg.name }}[{{offs}} + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
       {%- if configuration['dbg'] %}
-    printf("{{ arg.name }}[%d] += %f\n", {{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}, {{ arg._local_name(idx=i) }}[i_2]);
+    printf("{{ arg.name }}[%d] += %f\n", {{offs}} + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}, {{ arg._local_name(idx=i) }}[i_2]);
       {%- endif %}
       {%- elif(arg._is_MIN) %}
-    {{ arg.name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = min({{ arg.name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg.name }}[{{offs}} + (p_ind_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = min({{ arg.name }}[{{offs}} + p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- elif(arg._is_MAX) %}
-    {{ arg.name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }})) * {{ arg.data.cdim }}] = max({{ arg.name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg.name }}[{{offs}} + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }})) * {{ arg.data.cdim }}] = max({{ arg.name }}[{{offs}} + p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- endif %}
   {%- endfor %}
 }
@@ -128,10 +128,8 @@ void {{ parloop._stub_name }}(
   __global int* _ssinds,
   {% endif -%}
   __global int* p_ind_map,
-  __global int* p_base_layer_offsets,
   __global int *p_loc_map,
   __global int* p_ind_sizes,
-  __global int* p_cum_ind_sizes,
   __global int* p_ind_offsets,
   __global int* p_blk_map,
   __global int* p_offset,
@@ -197,8 +195,6 @@ void {{ parloop._stub_name }}(
 {%- for arg in parloop._unique_indirect_dat_args %}
   __global int* __local {{ arg._map_name }};
   __local int {{ arg._size_name }};
-  __local int {{ arg._base_layer_size_name }};
-  __global int* __local {{ arg._base_layer_offset_name }};
   __local {{ arg.data._cl_type }}* __local {{ arg._shared_name }};
 {%- endfor %}
 {% for arg  in parloop._all_non_inc_vec_map_args %}
@@ -225,26 +221,6 @@ void {{ parloop._stub_name }}(
 {%- endif %}
     offset_b_abs = p_offset[block_id];
     offset_b = offset_b_abs - set_offset;
-    {%- for arg in parloop._unique_indirect_dat_args -%}
-    {{ arg._size_name }} = p_ind_sizes[({{loop.index0}} + block_id * {{ loop.length }}) * 2];
-    {{ arg._base_layer_size_name }} = p_ind_sizes[(({{loop.index0}} + block_id * {{ loop.length }}) * 2) + 1];
-    {{ arg._map_name }} = &p_ind_map[{{arg._which_indirect}} * set_size] + p_ind_offsets[{{loop.index0}} + block_id * {{loop.length}}];
-{%- endfor %}
-
-    nbytes = 0;
-{%- for arg in parloop._unique_indirect_dat_args %}
-    {{ arg._shared_name }} = (__local {{ arg.data._cl_type }}*) (&shared[nbytes]);
-    {%- if configuration['dbg'] %}
-    printf("block_id: %d, {{ arg._shared_name }} accessed shared at: %d\n", block_id, nbytes);
-    {%- endif %}
-    nbytes += ROUND_UP({{arg._size_name }} * {{ arg.data.cdim }} * sizeof({{ arg.data._cl_type }}));
-
-    {%- if configuration['dbg'] %}
-    printf("block_id: %d, {{arg._base_layer_offset_name}} accessed at index %d\n", block_id, p_cum_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}]);
-    {%- endif %}
-    {{ arg._base_layer_offset_name }} = &(p_base_layer_offsets[p_cum_ind_sizes[{{loop.index0}} + block_id * {{ loop.length }}]]);
-
-{%- endfor %}
   }
   barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -343,12 +319,12 @@ void {{ parloop._stub_name }}(
         {%- if arg._flatten %}
           {%- for j in range(arg.data.dataset.cdim) %}
             {%- for i in range(arg.map.arity) %}
-              {{ arg._vec_name }}[{{ j * arg.map.arity + i }}] = {{ arg.name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }} + {{ j }};
+              {{ arg._vec_name }}[{{ j * arg.map.arity + i }}] = {{ arg.name }} + p_ind_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }} + {{ j }};
             {%- endfor -%}
           {%- endfor -%}
         {%- else %}
           {%- for i in range(arg.map.arity) %}
-      {{ arg._vec_name }}[{{ i }}] = {{ arg.name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }};
+      {{ arg._vec_name }}[{{ i }}] = {{ arg.name }} + p_ind_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }};
           {%- endfor -%}
         {%- endif -%}
       {%- endif -%}
@@ -466,18 +442,12 @@ _ssinds[{{ idx }}]
 {%- elif(arg._is_global) -%}
   {{ arg.name }}
 {%- else -%}
-&{{ arg.name }}[p_loc_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}]
+&{{ arg.name }}[p_ind_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}]
 {%- endif -%}
 {%- endmacro -%}
 
 {%- macro typecast(storage, type, qualifier) -%}
 ({{ storage }} {{ type }}{% if(not codegen.amd) %} {{ qualifier }}{% endif %})
-{%- endmacro -%}
-
-{%- macro shared_memory_reduc_zeroing(arg) -%}
-for (i_1 = get_local_id(0); i_1 < {{ arg._size_name }} * {{ arg.data.cdim }}; i_1 += get_local_size(0)) {
-  {{ arg._shared_name }}[i_1] = 0;
-}
 {%- endmacro -%}
 
 {{- header() }}

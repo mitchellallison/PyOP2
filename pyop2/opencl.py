@@ -403,12 +403,6 @@ class Plan(plan.Plan):
         return self._ind_sizes_array
 
     @property
-    def cum_ind_sizes(self):
-        if not hasattr(self, '_cum_ind_sizes_array'):
-            self._cum_ind_sizes_array = array.to_device(_queue, super(Plan, self).cum_ind_sizes)
-        return self._cum_ind_sizes_array
-
-    @property
     def ind_offs(self):
         if not hasattr(self, '_ind_offs_array'):
             self._ind_offs_array = array.to_device(_queue, super(Plan, self).ind_offs)
@@ -746,12 +740,8 @@ class ParLoop(device.ParLoop):
                 part.set._allocate_device()
                 args.append(part.set._device_data.data)
             args.append(_plan.ind_map.data)
-            if extruded_layers is not None:
-                args.append(_plan.base_layer_offsets.data)
             args.append(_plan.loc_map.data)
             args.append(_plan.ind_sizes.data)
-            if extruded_layers is not None:
-                args.append(_plan.cum_ind_sizes.data)
             args.append(_plan.ind_offs.data)
             args.append(_plan.blkmap.data)
             args.append(_plan.offset.data)

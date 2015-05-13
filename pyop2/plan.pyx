@@ -78,10 +78,8 @@ cdef class _Plan:
 
     cdef numpy.ndarray _nelems
     cdef numpy.ndarray _ind_map
-    cdef numpy.ndarray _base_layer_offsets
     cdef numpy.ndarray _loc_map
     cdef numpy.ndarray _ind_sizes
-    cdef numpy.ndarray _cum_ind_sizes
     cdef numpy.ndarray _nindirect
     cdef numpy.ndarray _ind_offs
     cdef numpy.ndarray _offset
@@ -174,76 +172,81 @@ cdef class _Plan:
 
                 offsets = {}
 
-                inds[dat, map, pi], inv = numpy.unique(staged_values, return_inverse=True)
-                inv = numpy.concatenate(staged_values)
+                if extruded_layers is None:
+                    inds[dat, map, pi], inv = numpy.unique(staged_values, return_inverse=True)
 
-                sizes[dat, map, pi] = len(inds[dat, map, pi])
+                    sizes[dat, map, pi] = len(inds[dat, map, pi])
 
-                for i, ind in enumerate(sorted(ii)):
-                    locs[dat, map, ind, pi] = inv[i::l]
+                    for i, ind in enumerate(sorted(ii)):
+                        locs[dat, map, ind, pi] = inv[i::l]
+                else:
+                    for i, ind in enumerate(sorted(ii)):
+                        inds[dat, map, ind, pi] = numpy.concatenate(staged_values)[i::l]
 
         def ind_iter():
-            for dat,map in d.iterkeys():
-                cumsum = 0
-                for pi in range(self._nblocks):
-                    cumsum += len(inds[dat, map, pi])
-                    yield inds[dat, map, pi]
-                # creates a padding to conform with op2 plan objects
-                # fills with -1 for debugging
-                # this should be removed and generated code changed
-                # once we switch to python plan only
-                pad = numpy.empty(len(indices[dat, map]) * iset.size - cumsum, dtype=numpy.int32)
-                pad.fill(-1)
-                yield pad
+            if extruded_layers is None:
+                for dat,map in d.iterkeys():
+                    cumsum = 0
+                    for pi in range(self._nblocks):
+                        cumsum += len(inds[dat, map, pi])
+                        yield inds[dat, map, pi]
+                    # creates a padding to conform with op2 plan objects
+                    # fills with -1 for debugging
+                    # this should be removed and generated code changed
+                    # once we switch to python plan only
+                    pad = numpy.empty(len(indices[dat, map]) * iset.size - cumsum, dtype=numpy.int32)
+                    pad.fill(-1)
+                    yield pad
+            else:
+                for dat, map in d.iterkeys():
+                    for i in indices[dat, map]:
+                        for pi in range(self._nblocks):
+                            yield inds[dat, map, i, pi].astype(numpy.int32)
         t = tuple(ind_iter())
         self._ind_map = numpy.concatenate(t) if t else numpy.array([], dtype=numpy.int32)
 
-        def size_iter():
-            for pi in range(self._nblocks):
-                for dat,map in d.iterkeys():
-                    yield sizes[(dat, map, pi)]
-                    if extruded_layers is not None:
+        if extruded_layers is None:
+            def size_iter():
+                for pi in range(self._nblocks):
+                    for dat,map in d.iterkeys():
                         yield sizes[(dat, map, pi)]
-        self._ind_sizes = numpy.fromiter(size_iter(), dtype=numpy.int32)
+            self._ind_sizes = numpy.fromiter(size_iter(), dtype=numpy.int32)
 
-        def cumulative_size_iter():
-            offset = 0
-            for pi in range(self._nblocks):
+            def nindirect_iter():
                 for dat,map in d.iterkeys():
-                    yield offset
-                    offset += sizes[dat, map, pi] + 1
-        self._cum_ind_sizes = numpy.fromiter(cumulative_size_iter(), dtype=numpy.int32)
+                        yield sum(sizes[(dat,map,pi)] for pi in range(self._nblocks))
+            self._nindirect = numpy.fromiter(nindirect_iter(), dtype=numpy.int32)
 
-        def nindirect_iter():
-            for dat,map in d.iterkeys():
-                    yield sum(sizes[(dat,map,pi)] for pi in range(self._nblocks))
-        self._nindirect = numpy.fromiter(nindirect_iter(), dtype=numpy.int32)
+            locs_t = tuple(locs[dat, map, i, pi].astype(numpy.int32)
+                           for dat, map in d.iterkeys()
+                           for i in indices[dat, map]
+                           for pi in range(self._nblocks))
+            self._loc_map = numpy.concatenate(locs_t) if locs_t else numpy.array([], dtype=numpy.int32)
 
-        locs_t = tuple(locs[dat, map, i, pi].astype(numpy.int32)
-                       for dat, map in d.iterkeys()
-                       for i in indices[dat, map]
-                       for pi in range(self._nblocks))
-        self._loc_map = numpy.concatenate(locs_t) if locs_t else numpy.array([], dtype=numpy.int32)
-
-        self._base_layer_offsets = numpy.array([], dtype=numpy.int32)
-
-        def off_iter():
-            _off = dict()
-            for dat, map in d.iterkeys():
-                _off[dat, map] = 0
-            for pi in range(self._nblocks):
+            def off_iter():
+                _off = dict()
                 for dat, map in d.iterkeys():
-                    yield _off[dat, map]
-                    _off[dat, map] += sizes[dat, map, pi]
-        self._ind_offs = numpy.fromiter(off_iter(), dtype=numpy.int32)
+                    _off[dat, map] = 0
+                for pi in range(self._nblocks):
+                    for dat, map in d.iterkeys():
+                        yield _off[dat, map]
+                        _off[dat, map] += sizes[dat, map, pi]
+            self._ind_offs = numpy.fromiter(off_iter(), dtype=numpy.int32)
 
-        # max shared memory required by work groups
-        nshareds = [0] * self._nblocks
-        for pi in range(self._nblocks):
-            for k in d.iterkeys():
-                dat, map = k
-                nshareds[pi] += align(sizes[(dat,map,pi)] * dat.dtype.itemsize * dat.cdim)
-        self._nshared = max(nshareds)
+            # max shared memory required by work groups
+            nshareds = [0] * self._nblocks
+            for pi in range(self._nblocks):
+                for k in d.iterkeys():
+                    dat, map = k
+                    nshareds[pi] += align(sizes[(dat,map,pi)] * dat.dtype.itemsize * dat.cdim)
+            self._nshared = max(nshareds)
+        else:
+            self._ind_sizes = numpy.array([], dtype=numpy.int32)
+            self._nindirect = numpy.array([], dtype=numpy.int32)
+            self._loc_map = numpy.array([], dtype=numpy.int32)
+            self._ind_offs = numpy.array([], dtype=numpy.int32)
+            self._nshared = 0
+
 
     def _compute_coloring(self, iset, partition_size, matrix_coloring, thread_coloring, args):
         """Constructs:
@@ -485,12 +488,6 @@ cdef class _Plan:
         return self._ind_sizes
 
     @property
-    def cum_ind_sizes(self):
-        """2D array of sizes of indirection maps for each block (nblocks x
-        nindirect)."""
-        return self._cum_ind_sizes
-
-    @property
     def ind_offs(self):
         """2D array of offsets into the indirection maps for each block
         (nblocks x nindirect)."""
@@ -501,14 +498,6 @@ cdef class _Plan:
         """Array of offsets of staged data in shared memory for each Dat/Map
         pair for each partition (nblocks x nindirect x partition size)."""
         return self._loc_map
-
-    @property
-    def base_layer_offsets(self):
-        """Array of offsets into shared memory that the corresponding values in
-        the indirection map relate to, for each Dat/Map pair. Can also be used
-        to calculate the number of layers to stage in by taking the difference
-        between two consecutive values."""
-        return self._base_layer_offsets
 
     @property
     def blkmap(self):
