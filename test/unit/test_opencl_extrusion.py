@@ -14,6 +14,8 @@ backends = ['opencl', 'sequential', 'openmp']
 
 discretisations = (('CG', 1), ('CG', 2), ('DG', 0), ('DG', 1), ('DG', 2))
 
+MESH_VERSION = 1
+
 
 def setup_module(module):
     directory = os.path.join(os.path.dirname(__file__), '../data/')
@@ -53,11 +55,23 @@ def write_profile_log_file(test_name, attributes):
         log_file.write(output)
 
 
-@pytest.fixture(scope='function', params=[(i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]],
-                ids=["{}x{}-{}".format(i, i, layers) for i in [1, 10, 100] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60]])
+@pytest.fixture(scope='function', params=[(i, layers) for i in [1, 10, 100, 'square'] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60, 100]],
+                ids=["{}-{}".format(i, layers) if type(i) is str else "{}x{}-{}".format(i, i, layers) for i in [1, 10, 100, 'square'] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 60, 100]])
 def mesh(request):
     (i, layers) = request.param
-    mesh = UnitSquareMesh(i, i)
+    mesh = None
+
+    if type(i) is str:
+        directory = '/data/mka211/meshes'
+        if not os.path.exists(directory):
+            assert False, "Directory {} does not exist.".format(directory)
+        mesh_file = os.path.join(directory, '{}_{}_{}.msh'.format(i, layers, MESH_VERSION))
+        if not os.path.isfile(mesh_file):
+            assert False, "Mesh file {} does not exist.".format(mesh_file)
+        mesh = Mesh(mesh_file)
+    else:
+        mesh = UnitSquareMesh(i, i)
+
     mesh = ExtrudedMesh(mesh, layers=layers, layer_height=0.1)
     return mesh
 
@@ -167,4 +181,5 @@ class TestOpenCLExtrusion:
         elif profile is not None:
             log_profiling(profile, test_name)
         else:
+            print f.dat.data
             compare_results(numpy.load(file_name), f.dat.data, 1e-17)

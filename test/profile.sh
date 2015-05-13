@@ -11,7 +11,7 @@ else
 
   backends=(sequential openmp opencl opencl)
   profile_names=(Sequential OpenMP OpenCL_CPU OpenCL_GPU)
-  machines=(pixel01 pixel01 pixel01 graphic06)
+  machines=(pixel02 pixel02 pixel02 graphic01)
 
   for i in "${!backends[@]}"; do
     backend=${backends[$i]}
