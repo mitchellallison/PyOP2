@@ -589,45 +589,49 @@ class ParLoop(device.ParLoop):
         return not _supports_64b_atomics and not not self._matrix_args
 
     def _i_partition_size(self):
-        # TODO FIX: something weird here
-        # available_local_memory
-        warning('temporary fix to available local memory computation (-512)')
-        available_local_memory = _max_local_memory - 512
-        # 16bytes local mem used for global / local indices and sizes
-        available_local_memory -= 16
-        # (4/8)ptr size per dat passed as argument (dat)
-        available_local_memory -= (_address_bits / 8) * (len(
-            self._unique_dat_args) + len(self._all_global_non_reduction_args))
-        # (4/8)ptr size per dat/map pair passed as argument (ind_map)
-        available_local_memory -= (_address_bits / 8) * len(self._unique_indirect_dat_args)
-        # (4/8)ptr size per global reduction temp array
-        available_local_memory -= (_address_bits / 8) * len(self._all_global_reduction_args)
-        # (4/8)ptr size per indirect arg (loc_map)
-        available_local_memory -= (_address_bits / 8) * len(self._all_indirect_args)
-        # (4/8)ptr size * 7: for plan objects
-        available_local_memory -= (_address_bits / 8) * 7
-        # 1 uint value for block offset
-        available_local_memory -= 4
-        # 7: 7bytes potentialy lost for aligning the shared memory buffer to 'long'
-        available_local_memory -= 7
-        # 12: shared_memory_offset, active_thread_count,
-        #     active_thread_count_ceiling variables (could be 8 or 12 depending)
-        #     and 3 for potential padding after shared mem buffer
-        available_local_memory -= 12 + 3
-        # 2 * (4/8)ptr size + 1uint32: DAT_via_MAP_indirection(./_size/_map) per
-        # dat map pairs
-        available_local_memory -= 4 + \
-            (_address_bits / 8) * 2 * len(self._unique_indirect_dat_args)
-        # inside shared memory padding
-        available_local_memory -= 2 * (len(self._unique_indirect_dat_args) - 1)
+        if not self.is_layered:
+            # TODO FIX: something weird here
+            # available_local_memory
+            warning('temporary fix to available local memory computation (-512)')
+            available_local_memory = _max_local_memory - 512
+            # 16bytes local mem used for global / local indices and sizes
+            available_local_memory -= 16
+            # (4/8)ptr size per dat passed as argument (dat)
+            available_local_memory -= (_address_bits / 8) * (len(
+                self._unique_dat_args) + len(self._all_global_non_reduction_args))
+            # (4/8)ptr size per dat/map pair passed as argument (ind_map)
+            available_local_memory -= (_address_bits / 8) * len(self._unique_indirect_dat_args)
+            # (4/8)ptr size per global reduction temp array
+            available_local_memory -= (_address_bits / 8) * len(self._all_global_reduction_args)
+            # (4/8)ptr size per indirect arg (loc_map)
+            available_local_memory -= (_address_bits / 8) * len(self._all_indirect_args)
+            # (4/8)ptr size * 7: for plan objects
+            available_local_memory -= (_address_bits / 8) * 7
+            # 1 uint value for block offset
+            available_local_memory -= 4
+            # 7: 7bytes potentialy lost for aligning the shared memory buffer to 'long'
+            available_local_memory -= 7
+            # 12: shared_memory_offset, active_thread_count,
+            #     active_thread_count_ceiling variables (could be 8 or 12 depending)
+            #     and 3 for potential padding after shared mem buffer
+            available_local_memory -= 12 + 3
+            # 2 * (4/8)ptr size + 1uint32: DAT_via_MAP_indirection(./_size/_map) per
+            # dat map pairs
+            available_local_memory -= 4 + \
+                (_address_bits / 8) * 2 * len(self._unique_indirect_dat_args)
+            # inside shared memory padding
+            available_local_memory -= 2 * (len(self._unique_indirect_dat_args) - 1)
 
-        max_bytes = sum(map(lambda a: a.data._bytes_per_elem, self._all_indirect_args))
-        partition_size = available_local_memory / (2 * _warpsize * max_bytes) * (2 * _warpsize)
-        if self.it_space.layers > 1:
-            partition_size /= (self.it_space.layers - 1)
-        if partition_size < 1:
-            raise NotImplemented("OpenCL extrusion does not yet support partitioning layers.")
-        return partition_size
+            max_bytes = sum(map(lambda a: a.data._bytes_per_elem, self._all_indirect_args))
+            partition_size = available_local_memory / (2 * _warpsize * max_bytes) * (2 * _warpsize)
+            if self.it_space.layers > 1:
+                partition_size /= (self.it_space.layers - 1)
+            if partition_size < 1:
+                raise NotImplemented("OpenCL extrusion does not yet support partitioning layers.")
+            return partition_size
+        else:
+            num_base_cells = self.it_space.size
+            return max(num_base_cells / _pref_work_group_count, 1)
 
     def launch_configuration(self):
         if self._is_direct:
