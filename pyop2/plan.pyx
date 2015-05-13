@@ -241,10 +241,6 @@ cdef class _Plan:
                     nshareds[pi] += align(sizes[(dat,map,pi)] * dat.dtype.itemsize * dat.cdim)
             self._nshared = max(nshareds)
         else:
-            self._ind_sizes = numpy.array([], dtype=numpy.int32)
-            self._nindirect = numpy.array([], dtype=numpy.int32)
-            self._loc_map = numpy.array([], dtype=numpy.int32)
-            self._ind_offs = numpy.array([], dtype=numpy.int32)
             self._nshared = 0
 
 
