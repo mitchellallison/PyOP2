@@ -740,9 +740,10 @@ class ParLoop(device.ParLoop):
                 part.set._allocate_device()
                 args.append(part.set._device_data.data)
             args.append(_plan.ind_map.data)
-            args.append(_plan.loc_map.data)
-            args.append(_plan.ind_sizes.data)
-            args.append(_plan.ind_offs.data)
+            if extruded_layers is None:
+                args.append(_plan.loc_map.data)
+                args.append(_plan.ind_sizes.data)
+                args.append(_plan.ind_offs.data)
             args.append(_plan.blkmap.data)
             args.append(_plan.offset.data)
             args.append(_plan.nelems.data)
