@@ -527,7 +527,7 @@ class JITModule(base.JITModule):
                         i = ("__global", None)
                     elif (arg._is_indirect or arg._is_vec_map) and not \
                             arg._is_indirect_reduction:
-                        i = ("__local", None)
+                        i = ("__global", None)
                     else:
                         i = ("__private", None)
 
