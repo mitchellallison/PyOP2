@@ -135,7 +135,7 @@ void {{ parloop._stub_name }}(
   __global int* p_thrcol,
   __private int block_offset
 ) {
-  __local char shared [{{ launch.local_memory_size }}] __attribute__((aligned(sizeof(long))));
+  //__local char shared [{{ launch.local_memory_size }}] __attribute__((aligned(sizeof(long))));
   __local int offset_b;
   __local int offset_b_abs;
   __local int active_threads_count;
