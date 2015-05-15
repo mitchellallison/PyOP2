@@ -167,9 +167,6 @@ cdef class _Plan:
                 else:
                     staged_values = map.values_with_halo[start:end, ii]
 
-                if configuration['dbg']:
-                    print "pi: {}, start: {}, end: {}, ii: {}".format(pi, start, end, ii)
-
                 offsets = {}
 
                 if extruded_layers is None:
