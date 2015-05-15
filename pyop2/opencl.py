@@ -623,15 +623,10 @@ class ParLoop(device.ParLoop):
             available_local_memory -= 2 * (len(self._unique_indirect_dat_args) - 1)
 
             max_bytes = sum(map(lambda a: a.data._bytes_per_elem, self._all_indirect_args))
-            partition_size = available_local_memory / (2 * _warpsize * max_bytes) * (2 * _warpsize)
-            if self.it_space.layers > 1:
-                partition_size /= (self.it_space.layers - 1)
-            if partition_size < 1:
-                raise NotImplemented("OpenCL extrusion does not yet support partitioning layers.")
-            return partition_size
+            return available_local_memory / (2 * _warpsize * max_bytes) * (2 * _warpsize)
         else:
             num_base_cells = self.it_space.size
-            return max(num_base_cells / _pref_work_group_count, 1)
+            return max(num_base_cells / (_pref_work_group_count * 2**configuration['partition_scale']), 1)
 
     def launch_configuration(self):
         if self._is_direct:
