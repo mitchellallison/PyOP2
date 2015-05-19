@@ -25,7 +25,7 @@ pyop2.log
 .tox
 .vagrant
 test/data/*
-test/profile_data*/*
+test/*profile_data*/*
 test/profile_graphs*/*
 test/partition_tuning/*
 
