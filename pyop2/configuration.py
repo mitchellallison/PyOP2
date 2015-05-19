@@ -88,7 +88,7 @@ class Configuration(dict):
                               os.path.join(gettempdir(), "pyop2-gencode")),
         "matnest": ("PYOP2_MATNEST", bool, True),
         "dbg": ("PYOP2_DBG", bool, False),
-        "partition_scale": ("PYOP2_PARTITION_SCALE", int, 0),
+        "partition_scale": ("PYOP2_PARTITION_SCALE", int, 4),
     }
     """Default values for PyOP2 configuration parameters"""
     READONLY = ['backend']
