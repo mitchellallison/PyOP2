@@ -36,6 +36,7 @@ Cython implementation of the Plan construction.
 """
 
 import sys
+import gc
 import base
 from profiling import timed_region
 from utils import align, as_tuple
@@ -107,6 +108,29 @@ cdef class _Plan:
         with timed_region("Coloring"):
             self._compute_coloring(iset, partition_size, matrix_coloring, thread_coloring, args)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._nelems = None
+        self._ind_map = None
+        self._loc_map = None
+        self._ind_sizes = None
+        self._nindirect = None
+        self._ind_offs = None
+        self._offset = None
+        self._thrcol = None
+        self._nthrcol = None
+        self._ncolblk = None
+        self._blkmap = None
+        _nblocks = 0
+        _nargs = 0
+        _ninds = 0
+        _nshared = 0
+        _ncolors = 0
+        gc.collect()
+
+
     def _compute_partition_info(self, iset, partition_size, matrix_coloring, args):
         self._nblocks = int(math.ceil(iset.size / float(partition_size)))
         self._nelems = numpy.array([min(partition_size, iset.size - i * partition_size) for i in range(self._nblocks)],
@@ -166,8 +190,6 @@ cdef class _Plan:
                     staged_values = map.values_with_halo[iset.set.indices[start:end]][:, ii]
                 else:
                     staged_values = map.values_with_halo[start:end, ii]
-
-                offsets = {}
 
                 if extruded_layers is None:
                     inds[dat, map, pi], inv = numpy.unique(staged_values, return_inverse=True)
@@ -239,6 +261,10 @@ cdef class _Plan:
             self._nshared = max(nshareds)
         else:
             self._nshared = 0
+        indices.clear()
+        inds.clear()
+        locs.clear()
+        sizes.clear()
 
 
     def _compute_coloring(self, iset, partition_size, matrix_coloring, thread_coloring, args):

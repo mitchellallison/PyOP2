@@ -33,6 +33,7 @@
 
 """OP2 OpenCL backend."""
 
+import gc
 import collections
 from jinja2 import Environment, PackageLoader
 import math
@@ -674,27 +675,6 @@ class ParLoop(device.ParLoop):
         conf = self.launch_configuration()
         conf['subset'] = isinstance(part.set, Subset)
 
-        if self._is_indirect:
-            extruded_layers = self.layer_arg[0] - 1 if self.is_layered else None
-            _plan = Plan(part,
-                         *self._unwound_args,
-                         partition_size=conf['partition_size'],
-                         matrix_coloring=self._requires_matrix_coloring,
-                         extruded_layers=extruded_layers)
-            conf['local_memory_size'] = _plan.nshared
-            conf['ninds'] = _plan.ninds
-            if self.is_layered:
-                conf['work_group_size'] = min(_max_work_group_size,
-                                              extruded_layers)
-            else:
-                conf['work_group_size'] = min(_max_work_group_size,
-                                              conf['partition_size'])
-            conf['work_group_count'] = _plan.nblocks
-        conf['warpsize'] = _warpsize
-        conf['op2stride'] = self._it_space.size
-
-        fun = JITModule(self.kernel, self.it_space, *self.args, parloop=self, conf=conf)
-
         with timed_region("To Device"):
             args = []
             for arg in self._unique_args:
@@ -725,46 +705,71 @@ class ParLoop(device.ParLoop):
                 m._to_device()
                 args.append(m._device_values.data)
 
-        if self._is_direct:
+        if self._is_indirect:
+            extruded_layers = self.layer_arg[0] - 1 if self.is_layered else None
+            with Plan(part,
+                      *self._unwound_args,
+                      partition_size=conf['partition_size'],
+                      matrix_coloring=self._requires_matrix_coloring,
+                      extruded_layers=extruded_layers) as _plan:
+                conf['local_memory_size'] = _plan.nshared
+                conf['ninds'] = _plan.ninds
+                if self.is_layered:
+                    conf['work_group_size'] = min(_max_work_group_size,
+                                                  extruded_layers)
+                else:
+                    conf['work_group_size'] = min(_max_work_group_size,
+                                                  conf['partition_size'])
+                conf['work_group_count'] = _plan.nblocks
+                conf['warpsize'] = _warpsize
+                conf['op2stride'] = self._it_space.size
+
+                fun = JITModule(self.kernel, self.it_space, *self.args, parloop=self, conf=conf)
+
+                args.append(np.int32(part.size))
+                args.append(np.int32(part.offset))
+                if conf['subset']:
+                    part.set._allocate_device()
+                    args.append(part.set._device_data.data)
+                args.append(_plan.ind_map.data)
+                if extruded_layers is None:
+                    args.append(_plan.loc_map.data)
+                    args.append(_plan.ind_sizes.data)
+                    args.append(_plan.ind_offs.data)
+                args.append(_plan.blkmap.data)
+                args.append(_plan.offset.data)
+                args.append(_plan.nelems.data)
+                args.append(_plan.nthrcol.data)
+                args.append(_plan.thrcol.data)
+
+                block_offset = 0
+                args.append(0)
+
+                for i in range(_plan.ncolors):
+                    blocks_per_grid = int(_plan.ncolblk[i])
+                    if extruded_layers is not None:
+                        threads_per_block = min(_max_work_group_size, extruded_layers)
+                    else:
+                        threads_per_block = min(_max_work_group_size, conf['partition_size'])
+                    thread_count = threads_per_block * blocks_per_grid
+                    args[-1] = np.int32(block_offset)
+                    if configuration['dbg']:
+                        from IPython import embed
+                        embed()
+                    fun(int(thread_count), int(threads_per_block), *args)
+                    block_offset += blocks_per_grid
+        else:
+            conf['warpsize'] = _warpsize
+            conf['op2stride'] = self._it_space.size
+
+            fun = JITModule(self.kernel, self.it_space, *self.args, parloop=self, conf=conf)
+
             args.append(np.int32(part.size))
             args.append(np.int32(part.offset))
             if conf['subset']:
                 part.set._allocate_device()
                 args.append(part.set._device_data.data)
             fun(conf['thread_count'], conf['work_group_size'], *args)
-        else:
-            args.append(np.int32(part.size))
-            args.append(np.int32(part.offset))
-            if conf['subset']:
-                part.set._allocate_device()
-                args.append(part.set._device_data.data)
-            args.append(_plan.ind_map.data)
-            if extruded_layers is None:
-                args.append(_plan.loc_map.data)
-                args.append(_plan.ind_sizes.data)
-                args.append(_plan.ind_offs.data)
-            args.append(_plan.blkmap.data)
-            args.append(_plan.offset.data)
-            args.append(_plan.nelems.data)
-            args.append(_plan.nthrcol.data)
-            args.append(_plan.thrcol.data)
-
-            block_offset = 0
-            args.append(0)
-
-            for i in range(_plan.ncolors):
-                blocks_per_grid = int(_plan.ncolblk[i])
-                if extruded_layers is not None:
-                    threads_per_block = min(_max_work_group_size, extruded_layers)
-                else:
-                    threads_per_block = min(_max_work_group_size, conf['partition_size'])
-                thread_count = threads_per_block * blocks_per_grid
-                args[-1] = np.int32(block_offset)
-                if configuration['dbg']:
-                    from IPython import embed
-                    embed()
-                fun(int(thread_count), int(threads_per_block), *args)
-                block_offset += blocks_per_grid
 
         # mark !READ data as dirty
         for arg in self.args:
