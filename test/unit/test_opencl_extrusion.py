@@ -14,6 +14,8 @@ backends = ['opencl', 'sequential', 'openmp']
 
 discretisations = (('CG', 1), ('CG', 2), ('DG', 0), ('DG', 1), ('DG', 2))
 
+layers = [1, 2, 3, 4, 8, 10, 15, 16, 30, 32, 45, 50, 60, 64, 96, 100, 128, 160, 192, 224, 256]
+
 
 def setup_module(module):
     directory = os.path.join(os.path.dirname(__file__), '../data/')
@@ -53,24 +55,24 @@ def write_profile_log_file(test_name, attributes):
         log_file.write(output)
 
 
-@pytest.fixture(scope='function', params=[(i, layers) for i in [1, 10, 100, 'square'] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 50, 60, 100]],
-                ids=["{}-{}".format(i, layers) if type(i) is str else "{}x{}-{}".format(i, i, layers) for i in [1, 10, 100, 'square'] for layers in [1, 2, 3, 4, 8, 10, 15, 30, 45, 50, 60, 100]])
+@pytest.fixture(scope='function', params=[(i, layer) for i in [1, 10, 100, 'square'] for layer in layers],
+                ids=["{}-{}".format(i, layer) if type(i) is str else "{}x{}-{}".format(i, i, layer) for i in [1, 10, 100, 'square'] for layer in layers])
 def mesh(request):
-    (i, layers) = request.param
+    (i, layer) = request.param
     mesh = None
 
     if type(i) is str:
         directory = '/data/mka211/meshes'
         if not os.path.exists(directory):
             assert False, "Directory {} does not exist.".format(directory)
-        mesh_file = os.path.join(directory, '{}_{}.msh'.format(i, layers))
+        mesh_file = os.path.join(directory, '{}_{}.msh'.format(i, layer))
         if not os.path.isfile(mesh_file):
             assert False, "Mesh file {} does not exist.".format(mesh_file)
         mesh = Mesh(mesh_file)
     else:
         mesh = UnitSquareMesh(i, i)
 
-    mesh = ExtrudedMesh(mesh, layers=layers, layer_height=0.1)
+    mesh = ExtrudedMesh(mesh, layers=layer, layer_height=0.1)
     return mesh
 
 
