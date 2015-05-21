@@ -182,4 +182,4 @@ class TestOpenCLExtrusion:
             log_profiling(profile, test_name)
         else:
             print f.dat.data
-            compare_results(numpy.load(file_name), f.dat.data, 1e-17)
+            compare_results(numpy.load(file_name), f.dat.data, 1e-15)
