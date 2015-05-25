@@ -51,7 +51,7 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 }
 {%- endmacro -%}
 
-{%- macro color_reduction(arg) -%}
+{%- macro reduction(arg) -%}
 for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
   {%- if(arg._is_INC) -%}
   {{ arg.name }}[i_2 + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] += {{ arg._local_name() }}[i_2];
@@ -63,7 +63,7 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
 }
 {%- endmacro -%}
 
-{%- macro color_reduction_vec_map(arg) -%}
+{%- macro reduction_vec_map(arg) -%}
 for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
   {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
     {%- if(arg._flatten) %}
@@ -256,22 +256,7 @@ void {{ parloop._stub_name }}(
     for (color_1 = 0; color_1 < colors_count; ++color_1) {
       // should there be a if + barrier pattern for each indirect reduction argument ?
       if (color_2 == color_1) {
-        {%- for arg in parloop._all_inc_non_vec_map_indirect_dat_args %}
-        {{ color_reduction(arg) | indent(8) }}
-        {%- endfor %}
-        {%- for arg in parloop._all_inc_vec_map_args %}
-        {{ color_reduction_vec_map(arg) | indent(8) }}
-        {%- endfor %}
-        {%- for arg in parloop._all_inc_itspace_dat_args %}
-        {{ color_reduction_vec_map(arg) | indent(8) }}
-        {%- endfor %}
-        {%- if(parloop._requires_matrix_coloring) %}
-        // IterationSpace index loops ({{ parloop._it_space._extent_ranges }})
-        {%- for it in parloop._it_space._extent_ranges %}
-        for (int idx_{{ loop.index0 }} = 0; idx_{{ loop.index0 }} < {{ it }}; ++idx_{{ loop.index0 }})
-        {%- endfor %}
-            {{ matrix_insert() }}
-        {% endif %}
+        {{ reduction_stage() }}
       }
       {%- if configuration['dbg'] %}
       //printf("thread %d of %d is waiting at the barrier\n", get_local_id(0), get_local_size(0));
@@ -302,23 +287,8 @@ void {{ parloop._stub_name }}(
         printf("offset: %d, i_1: %d\n", offset, i_1);
       {%- endif %}
       {{ kernel_call() | indent(6) }}
+      {{ reduction_stage() }}
       }
-      {%- for arg in parloop._all_inc_non_vec_map_indirect_dat_args %}
-      {{ color_reduction(arg) | indent(8) }}
-      {%- endfor %}
-      {%- for arg in parloop._all_inc_vec_map_args %}
-      {{ color_reduction_vec_map(arg) | indent(8) }}
-      {%- endfor %}
-      {%- for arg in parloop._all_inc_itspace_dat_args %}
-      {{ color_reduction_vec_map(arg) | indent(8) }}
-      {%- endfor %}
-      {%- if(parloop._requires_matrix_coloring) %}
-      // IterationSpace index loops ({{ parloop._it_space._extent_ranges }})
-      {%- for it in parloop._it_space._extent_ranges %}
-      for (int idx_{{ loop.index0 }} = 0; idx_{{ loop.index0 }} < {{ it }}; ++idx_{{ loop.index0 }})
-      {%- endfor %}
-          {{ matrix_insert() }}
-      {% endif %}
       barrier(CLK_LOCAL_MEM_FENCE);
     }
     }
@@ -356,7 +326,26 @@ void {{ parloop._stub_name }}(
       {%- endif -%}
     {%- endfor %}
 {%- endmacro -%}
-  
+
+{%- macro reduction_stage() -%}
+  {%- for arg in parloop._all_inc_non_vec_map_indirect_dat_args %}
+  {{ reduction(arg) | indent(8) }}
+  {%- endfor %}
+  {%- for arg in parloop._all_inc_vec_map_args %}
+  {{ reduction_vec_map(arg) | indent(8) }}
+  {%- endfor %}
+  {%- for arg in parloop._all_inc_itspace_dat_args %}
+  {{ reduction_vec_map(arg) | indent(8) }}
+  {%- endfor %}
+  {%- if(parloop._requires_matrix_coloring) %}
+  // IterationSpace index loops ({{ parloop._it_space._extent_ranges }})
+  {%- for it in parloop._it_space._extent_ranges %}
+  for (int idx_{{ loop.index0 }} = 0; idx_{{ loop.index0 }} < {{ it }}; ++idx_{{ loop.index0 }})
+  {%- endfor %}
+      {{ matrix_insert() }}
+  {% endif %}
+{%- endmacro -%}
+
 
 {#- rewrite: do recursive template -#}
 {%- macro matrix_kernel_call() -%}
