@@ -87,6 +87,9 @@ class Arg(base.Arg):
                 return "%s_%s_local" % (self.name, self.idx.index)
             return "%s_%s_local" % (self.name, self.idx)
 
+    def _ind_offset_name(self, which_indirect):
+        return "%s_ind_%d_offset" % (self.name, which_indirect)
+
     @property
     def _reduction_local_name(self):
         return "%s_reduction_local" % self.name
