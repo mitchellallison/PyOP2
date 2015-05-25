@@ -14,11 +14,12 @@
 {%- endmacro -%}
 
 {%- macro populate_vec_map(arg) -%}
-// populate vec map
 {%- if(arg._is_indirect_reduction) -%}
-  {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
+  {%- if not parloop.is_layered -%}
+    {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
 {{ arg._vec_name }}[{{ i }}] = {{ arg._local_name(idx=i) }};
-  {%- endfor -%}
+    {%- endfor -%}
+  {%- endif -%}
 {%- else -%}
   {%- if arg._flatten %}
     {%- for j in range(arg.data.dataset.cdim) %}
@@ -71,14 +72,14 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
     {%- set offs = 'i_2' %}
     {%- endif %}
       {%- if(arg._is_INC) %}
-    {{ arg.name }}[{{offs}} + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
+    {{ arg.name }}[{{offs}} + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + (layer + red_black_color) * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
       {%- if configuration['dbg'] %}
-    printf("{{ arg.name }}[%d] += %f\n", {{offs}} + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}, {{ arg._local_name(idx=i) }}[i_2]);
+    printf("{{ arg.name }}[%d] += %f\n", {{offs}} + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + (layer + red_black_color) * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}, {{ arg._local_name(idx=i) }}[i_2]);
       {%- endif %}
       {%- elif(arg._is_MIN) %}
-    {{ arg.name }}[{{offs}} + (p_ind_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = min({{ arg.name }}[{{offs}} + p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg.name }}[{{offs}} + (p_ind_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + (layer + red_black_color) * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = min({{ arg.name }}[{{offs}} + p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- elif(arg._is_MAX) %}
-    {{ arg.name }}[{{offs}} + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }})) * {{ arg.data.cdim }}] = max({{ arg.name }}[{{offs}} + p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg.name }}[{{offs}} + (p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + (layer + red_black_color) * {{ arg.map.get_offset(i) }})) * {{ arg.data.cdim }}] = max({{ arg.name }}[{{offs}} + p_ind_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- endif %}
   {%- endfor %}
 }
@@ -131,8 +132,10 @@ void {{ parloop._stub_name }}(
   __global int* p_blk_map,
   __global int* p_offset,
   __global int* p_nelems,
+{%- if(parloop._requires_coloring) -%}
   __global int* p_nthrcol,
   __global int* p_thrcol,
+{%- endif -%}
   __private int block_offset
 ) {
   //__local char shared [{{ launch.local_memory_size }}] __attribute__((aligned(sizeof(long))));
@@ -144,13 +147,13 @@ void {{ parloop._stub_name }}(
   int block_id;
 
   int i_1;
+  int i_2;
 
 {%- if(parloop._requires_coloring) %}
   __local int colors_count;
   __local int active_threads_count_ceiling;
   int color_1;
   int color_2;
-  int i_2;
 {%- endif %}
 
 {%- if(parloop._unique_indirect_dat_args) %}
@@ -230,15 +233,16 @@ void {{ parloop._stub_name }}(
 
 {%- if(parloop._requires_coloring) %}
   for (i_1 = 0; i_1 < active_threads_count; i_1++) {
-    for (int red_black_color = 0; red_black_color < 2; red_black_color++) {
     {{ extruded_vec_setup() }}
-    {%- if configuration['dbg'] %}
-    //printf("ceiling: %d\n", active_threads_count_ceiling);
-    {%- endif %}
-    for (int layer = (get_local_id(0) * 2) + red_black_color, thread_block_height = 0; thread_block_height < {{ parloop.layer_arg[0] - 1 }}; layer += get_local_size(0) * 2, thread_block_height += get_local_size(0) * 2) {
-      color_2 = -1;
-      int offset = min(layer, ((int)get_local_size(0) * 2));
-      if (layer < {{ parloop.layer_arg[0] - 1 }}) {
+    for (int layer = get_local_id(0) * 2, thread_block_height = 0; thread_block_height < {{ parloop.layer_arg[0] - 1 }}; layer += get_local_size(0) * 2, thread_block_height += get_local_size(0) * 2) {
+      for (int red_black_color = 0; red_black_color < min(2, {{ parloop.layer_arg[0] - 1 }}); red_black_color++) {
+      int offset;
+      if (red_black_color == 0) {
+        offset = min(layer, ((int)get_local_size(0) * 2) - 1);
+      } else {
+        offset = 1;
+      }
+      if (layer + red_black_color < {{ parloop.layer_arg[0] - 1 }}) {
     {%- if configuration['dbg'] %}
       printf("offset: %d, i_1: %d\n", offset, i_1);
     {%- endif %}
@@ -278,20 +282,45 @@ void {{ parloop._stub_name }}(
       {%- endif %}
     }
     }
-    }
   }
 {%- else %}
     for (i_1 = 0; i_1 < active_threads_count; i_1++) {
-    for (int red_black_color = 0; red_black_color < 2; red_black_color++) {
     {{ extruded_vec_setup() }}
-    for (int layer = (get_local_id(0) * 2) + red_black_color; layer < {{ parloop.layer_arg[0] - 1}}; layer += get_local_size(0) * 2) {
-      int offset = min(layer, ((int)get_local_size(0) * 2));
-    {%- if configuration['dbg'] %}
-      printf("offset: %d, i_1: %d\n", offset, i_1);
-    {%- endif %}
-    {{ kernel_call() | indent(6) }}
+    for (int layer = get_local_id(0) * 2, thread_block_height = 0; thread_block_height < {{ parloop.layer_arg[0] - 1 }}; layer += get_local_size(0) * 2, thread_block_height += get_local_size(0) * 2) {
+      for (int red_black_color = 0; red_black_color < min(2, {{ parloop.layer_arg[0] - 1 }}); red_black_color++) {
+      int offset;
+      if (layer + red_black_color < {{ parloop.layer_arg[0] - 1 }}) {
+        {%- for arg in parloop._all_inc_indirect_dat_args %}
+        {{ staged_arg_local_variable_zeroing(arg) | indent(6) }}
+        {%- endfor %}
+        if (red_black_color == 0) {
+          offset = min(layer, ((int)get_local_size(0) * 2) - 1);
+        } else {
+          offset = 1;
+        }
+      {%- if configuration['dbg'] %}
+        printf("offset: %d, i_1: %d\n", offset, i_1);
+      {%- endif %}
+      {{ kernel_call() | indent(6) }}
+      }
+      {%- for arg in parloop._all_inc_non_vec_map_indirect_dat_args %}
+      {{ color_reduction(arg) | indent(8) }}
+      {%- endfor %}
+      {%- for arg in parloop._all_inc_vec_map_args %}
+      {{ color_reduction_vec_map(arg) | indent(8) }}
+      {%- endfor %}
+      {%- for arg in parloop._all_inc_itspace_dat_args %}
+      {{ color_reduction_vec_map(arg) | indent(8) }}
+      {%- endfor %}
+      {%- if(parloop._requires_matrix_coloring) %}
+      // IterationSpace index loops ({{ parloop._it_space._extent_ranges }})
+      {%- for it in parloop._it_space._extent_ranges %}
+      for (int idx_{{ loop.index0 }} = 0; idx_{{ loop.index0 }} < {{ it }}; ++idx_{{ loop.index0 }})
+      {%- endfor %}
+          {{ matrix_insert() }}
+      {% endif %}
+      barrier(CLK_LOCAL_MEM_FENCE);
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
     }
   }
 {%- endif %}

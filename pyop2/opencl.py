@@ -584,6 +584,10 @@ class ParLoop(device.ParLoop):
         return list(uniquify(m for arg in self.args if arg._is_mat for m in arg.map))
 
     @property
+    def _requires_coloring(self):
+        return not self.is_layered and super(device.ParLoop, self)._requires_coloring
+
+    @property
     def _requires_matrix_coloring(self):
         """Direct code generation to follow colored execution for global
         matrix insertion."""
@@ -710,15 +714,14 @@ class ParLoop(device.ParLoop):
             with Plan(part,
                       *self._unwound_args,
                       partition_size=conf['partition_size'],
+                      thread_coloring=(not self.is_layered),
                       matrix_coloring=self._requires_matrix_coloring,
                       extruded_layers=extruded_layers) as _plan:
                 conf['local_memory_size'] = _plan.nshared
                 conf['ninds'] = _plan.ninds
                 if self.is_layered:
-                    #conf['work_group_size'] = min(_max_work_group_size,
-                    #                              extruded_layers)
                     conf['work_group_size'] = min(_max_work_group_size,
-                                                  _warpsize * 2)
+                                                  extruded_layers)
                 else:
                     conf['work_group_size'] = min(_max_work_group_size,
                                                   conf['partition_size'])
@@ -734,24 +737,24 @@ class ParLoop(device.ParLoop):
                     part.set._allocate_device()
                     args.append(part.set._device_data.data)
                 args.append(_plan.ind_map.data)
-                if extruded_layers is None:
+                if not self.is_layered:
                     args.append(_plan.loc_map.data)
                     args.append(_plan.ind_sizes.data)
                     args.append(_plan.ind_offs.data)
                 args.append(_plan.blkmap.data)
                 args.append(_plan.offset.data)
                 args.append(_plan.nelems.data)
-                args.append(_plan.nthrcol.data)
-                args.append(_plan.thrcol.data)
+                if not self.is_layered:
+                    args.append(_plan.nthrcol.data)
+                    args.append(_plan.thrcol.data)
 
                 block_offset = 0
                 args.append(0)
 
                 for i in range(_plan.ncolors):
                     blocks_per_grid = int(_plan.ncolblk[i])
-                    if extruded_layers is not None:
-                        #threads_per_block = min(_max_work_group_size, extruded_layers)
-                        threads_per_block = min(_max_work_group_size, _warpsize * 2)
+                    if self.is_layered:
+                        threads_per_block = min(_max_work_group_size, extruded_layers)
                     else:
                         threads_per_block = min(_max_work_group_size, conf['partition_size'])
                     thread_count = threads_per_block * blocks_per_grid
@@ -836,4 +839,4 @@ _reduction_task_cache = None
 _jinja2_env = Environment(loader=PackageLoader("pyop2", "assets"))
 _jinja2_direct_loop = _jinja2_env.get_template("opencl_direct_loop.jinja2")
 _jinja2_indirect_loop = _jinja2_env.get_template("opencl_indirect_loop.jinja2")
-_jinja2_indirect_extruded_loop = _jinja2_env.get_template("opencl_indirect_extruded_new_scheme_loop.jinja2")
+_jinja2_indirect_extruded_loop = _jinja2_env.get_template("opencl_indirect_extruded_nostaging_loop.jinja2")
