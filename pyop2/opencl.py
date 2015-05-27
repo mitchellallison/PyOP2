@@ -630,8 +630,8 @@ class ParLoop(device.ParLoop):
             max_bytes = sum(map(lambda a: a.data._bytes_per_elem, self._all_indirect_args))
             return available_local_memory / (2 * _warpsize * max_bytes) * (2 * _warpsize)
         else:
-            num_base_cells = self.it_space.size
-            return max(num_base_cells / (_pref_work_group_count * 2**configuration['partition_scale']), 1)
+            max_bytes = sum(map(lambda a: a.data._bytes_per_elem, self._all_indirect_args))
+            return max(configuration['partition_size'] / (max_bytes * self.it_space.layers), 1)
 
     def launch_configuration(self):
         if self._is_direct:
@@ -720,8 +720,12 @@ class ParLoop(device.ParLoop):
                 conf['local_memory_size'] = _plan.nshared
                 conf['ninds'] = _plan.ninds
                 if self.is_layered:
-                    conf['work_group_size'] = min(_max_work_group_size,
-                                                  extruded_layers)
+                    if configuration['execution_scheme'] == 0:
+                        conf['work_group_size'] = min(_max_work_group_size,
+                                                      extruded_layers)
+                    else:
+                        conf['work_group_size'] = min(_max_work_group_size,
+                                                      _warpsize * 2)
                 else:
                     conf['work_group_size'] = min(_max_work_group_size,
                                                   conf['partition_size'])
@@ -754,7 +758,10 @@ class ParLoop(device.ParLoop):
                 for i in range(_plan.ncolors):
                     blocks_per_grid = int(_plan.ncolblk[i])
                     if self.is_layered:
-                        threads_per_block = min(_max_work_group_size, extruded_layers)
+                        if configuration['execution_scheme'] == 0:
+                            threads_per_block = min(_max_work_group_size, extruded_layers)
+                        else:
+                            threads_per_block = min(_max_work_group_size, _warpsize * 2)
                     else:
                         threads_per_block = min(_max_work_group_size, conf['partition_size'])
                     thread_count = threads_per_block * blocks_per_grid
@@ -839,4 +846,7 @@ _reduction_task_cache = None
 _jinja2_env = Environment(loader=PackageLoader("pyop2", "assets"))
 _jinja2_direct_loop = _jinja2_env.get_template("opencl_direct_loop.jinja2")
 _jinja2_indirect_loop = _jinja2_env.get_template("opencl_indirect_loop.jinja2")
-_jinja2_indirect_extruded_loop = _jinja2_env.get_template("opencl_indirect_extruded_nostaging_loop.jinja2")
+if configuration['execution_scheme'] == 0:
+    _jinja2_indirect_extruded_loop = _jinja2_env.get_template("opencl_indirect_extruded_nostaging_loop.jinja2")
+else:
+    _jinja2_indirect_extruded_loop = _jinja2_env.get_template("opencl_indirect_extruded_new_scheme_loop.jinja2")
