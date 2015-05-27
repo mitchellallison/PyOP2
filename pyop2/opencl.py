@@ -631,7 +631,10 @@ class ParLoop(device.ParLoop):
             return available_local_memory / (2 * _warpsize * max_bytes) * (2 * _warpsize)
         else:
             max_bytes = sum(map(lambda a: a.data._bytes_per_elem, self._all_indirect_args))
-            return max(configuration['partition_size'] / (max_bytes * self.it_space.layers), 1)
+            if configuration['execution_scheme'] == 0:
+                return max(configuration['partition_size'] / (max_bytes * self.it_space.layers), 1)
+            else:
+                return max(configuration['partition_size'] / (max_bytes * min(_warpsize * 2, self.it_space.layers)), 1)
 
     def launch_configuration(self):
         if self._is_direct:
@@ -725,7 +728,7 @@ class ParLoop(device.ParLoop):
                                                       extruded_layers)
                     else:
                         conf['work_group_size'] = min(_max_work_group_size,
-                                                      _warpsize * 2)
+                                                      min(_warpsize * 2, extruded_layers))
                 else:
                     conf['work_group_size'] = min(_max_work_group_size,
                                                   conf['partition_size'])
@@ -761,7 +764,7 @@ class ParLoop(device.ParLoop):
                         if configuration['execution_scheme'] == 0:
                             threads_per_block = min(_max_work_group_size, extruded_layers)
                         else:
-                            threads_per_block = min(_max_work_group_size, _warpsize * 2)
+                            threads_per_block = min(_max_work_group_size, min(_warpsize * 2, extruded_layers))
                     else:
                         threads_per_block = min(_max_work_group_size, conf['partition_size'])
                     thread_count = threads_per_block * blocks_per_grid
