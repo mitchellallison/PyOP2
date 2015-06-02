@@ -45,6 +45,7 @@ def write_profile_log_file(test_name, attributes):
         os.makedirs(directory)
 
     timer_titles = attributes.keys()
+    timer_titles.sort()
 
     timer_times = ", ".join(map(lambda x: repr(attributes[x]), timer_titles))
     output = timer_times + '\n'
