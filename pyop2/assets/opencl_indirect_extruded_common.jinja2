@@ -186,14 +186,28 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
     {%- set offs = 'i_2' %}
     {%- endif %}
       {%- if(arg._is_INC) %}
-    {{ arg.name }}[{{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + (layer + red_black_color) * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
+    {{ arg.name }}[{{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
       {%- elif(arg._is_MIN) %}
-    {{ arg.name }}[{{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + (layer + red_black_color) * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = min({{ arg.name }}[({{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + (layer + red_black_color) * {{ arg.map.get_offset(i) }})  * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg.name }}[{{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = min({{ arg.name }}[({{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + layer * {{ arg.map.get_offset(i) }})  * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- elif(arg._is_MAX) %}
-    {{ arg.name }}[{{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + (layer + red_black_color) * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = max({{ arg.name }}[({{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + (layer + red_black_color) * {{ arg.map.get_offset(i) }})  * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
+    {{ arg.name }}[{{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = max({{ arg.name }}[({{offs}} + ({{ arg._ind_offset_name(arg._which_indirect + i % arg.map.arity) }} + layer * {{ arg.map.get_offset(i) }})  * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
       {%- endif %}
   {%- endfor %}
 }
 {%- endmacro -%}
 
-
+{%- macro populate_vec_map(arg) -%}
+{%- if not arg._is_indirect_reduction -%}
+  {%- if arg._flatten %}
+    {%- for j in range(arg.data.dataset.cdim) %}
+      {%- for i in range(arg.map.arity) %}
+  {{ arg._vec_name }}[{{ j * arg.map.arity + i }}] += (offset * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }};
+      {%- endfor -%}
+    {%- endfor -%}
+  {%- else %}
+    {%- for i in range(arg.map.arity) %}
+{{ arg._vec_name }}[{{ i }}] += (offset * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }};
+    {%- endfor -%}
+  {%- endif -%}
+{%- endif -%}
+{%- endmacro -%}
