@@ -560,11 +560,12 @@ class JITModule(base.JITModule):
         for i, arg in enumerate(args):
             fun.set_arg(i, arg)
         if profile:
-            with timed_region("ParLoop kernel"):
+            with timed_region("Assembly kernel"):
                 event = cl.enqueue_nd_range_kernel(_queue, fun, (thread_count,),
                                                    (work_group_size,), g_times_l=False)
                 event.wait()
         else:
+            with timed_region("Other kernel"):
                 event = cl.enqueue_nd_range_kernel(_queue, fun, (thread_count,),
                                                    (work_group_size,), g_times_l=False)
                 event.wait()

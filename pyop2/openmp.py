@@ -300,12 +300,12 @@ class ParLoop(device.ParLoop, host.ParLoop):
             boffset = 0
             for c in range(plan.ncolors):
                 nblocks = plan.ncolblk[c]
-                from IPython import embed; embed()
                 if self._kernel.name == "form_cell_integral_0_otherwise":
-                    with timed_region("ParLoop kernel"):
+                    with timed_region("Assembly kernel"):
                         fun(boffset, nblocks, blkmap, offset, nelems, *arglist)
                 else:
-                    fun(boffset, nblocks, blkmap, offset, nelems, *arglist)
+                    with timed_region("Other kernel"):
+                        fun(boffset, nblocks, blkmap, offset, nelems, *arglist)
                 boffset += nblocks
 
     def _get_plan(self, part, part_size):
