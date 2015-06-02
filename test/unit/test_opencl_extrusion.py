@@ -44,9 +44,9 @@ def write_profile_log_file(test_name, attributes):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    timer_titles = ['Profile', 'Partitioning', 'Staging', 'Coloring', 'Plan construction', 'To Device', 'ParLoop kernel']
+    timer_titles = attributes.keys()
 
-    timer_times = ", ".join(map(lambda x: repr(attributes[x] if x in attributes else 0), timer_titles))
+    timer_times = ", ".join(map(lambda x: repr(attributes[x]), timer_titles))
     output = timer_times + '\n'
 
     with open(os.path.join(directory, test_name), 'a') as log_file:
@@ -68,7 +68,7 @@ def mesh(request):
         mesh_file = os.path.join(directory, '{}_{}.msh'.format(i, layer))
         if not os.path.isfile(mesh_file):
             assert False, "Mesh file {} does not exist.".format(mesh_file)
-        mesh = Mesh(mesh_file)
+        mesh = Mesh(mesh_file, reorder=True)
     else:
         mesh = UnitSquareMesh(i, i)
 
@@ -78,7 +78,7 @@ def mesh(request):
 
 @pytest.fixture(scope='function')
 def test_name(request):
-    return re.sub("(" + "|".join(backends) + ")-", "", request.node.name)
+    return request.node.name
 
 
 class TestOpenCLExtrusion:
