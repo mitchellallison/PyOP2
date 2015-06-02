@@ -4,7 +4,7 @@ discretisations=(CG1 DG1)
 test=test_extruded_rhs_assembly
 layers=(1 2 4 8 16 32 64 96 128 160 192 224 256)
 mesh_size=square
-iterations=1
+iterations=15
 
 for disc_1 in "${discretisations[@]}"; do
   for disc_2 in "${discretisations[@]}"; do
