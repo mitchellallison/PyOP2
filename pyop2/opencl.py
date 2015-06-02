@@ -560,7 +560,7 @@ class JITModule(base.JITModule):
         del self._conf
         return self._fun
 
-    def __call__(self, thread_count, work_group_size, *args):
+    def __call__(self, profile, thread_count, work_group_size, *args):
         fun = self.compile()
         for i, arg in enumerate(args):
             fun.set_arg(i, arg)
@@ -741,7 +741,7 @@ class ParLoop(device.ParLoop):
             if conf['subset']:
                 part.set._allocate_device()
                 args.append(part.set._device_data.data)
-            fun(conf['thread_count'], conf['work_group_size'], *args)
+            fun(False, conf['thread_count'], conf['work_group_size'], *args)
         else:
             args.append(np.int32(part.size))
             args.append(np.int32(part.offset))
@@ -776,7 +776,7 @@ class ParLoop(device.ParLoop):
                 if configuration['dbg']:
                     from IPython import embed
                     embed()
-                fun(int(thread_count), int(threads_per_block), *args)
+                fun(self._kernel.name == "form_cell_integral_0_otherwise", int(thread_count), int(threads_per_block), *args)
                 block_offset += blocks_per_grid
 
         # mark !READ data as dirty
