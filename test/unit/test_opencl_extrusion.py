@@ -40,7 +40,7 @@ def log_profiling(profile, test_name):
 
 
 def write_profile_log_file(test_name, attributes):
-    directory = os.path.join(os.path.dirname(__file__), '../staged_profile_data/')
+    directory = os.path.join(os.path.dirname(__file__), '../profile_data/')
     if not os.path.exists(directory):
         os.makedirs(directory)
 
