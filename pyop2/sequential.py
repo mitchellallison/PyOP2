@@ -159,7 +159,10 @@ class ParLoop(host.ParLoop):
 
     @collective
     def _compute(self, part, fun, *arglist):
-        with timed_region("ParLoop kernel"):
+        if self._kernel.name == "form_cell_integral_0_otherwise":
+            with timed_region("ParLoop kernel"):
+                fun(part.offset, part.offset + part.size, *arglist)
+        else:
             fun(part.offset, part.offset + part.size, *arglist)
 
 

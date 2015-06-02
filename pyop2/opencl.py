@@ -555,17 +555,19 @@ class JITModule(base.JITModule):
         del self._conf
         return self._fun
 
-    def __call__(self, thread_count, work_group_size, *args):
+    def __call__(self, profile, thread_count, work_group_size, *args):
         fun = self.compile()
         for i, arg in enumerate(args):
             fun.set_arg(i, arg)
-        with timed_region("ParLoop kernel"):
-            event = cl.enqueue_nd_range_kernel(_queue, fun, (thread_count,),
-                                               (work_group_size,), g_times_l=False)
-            event.wait()
-            elapsed_time = event.profile.end - event.profile.start
-            queued_time = event.profile.queued - event.profile.submit
-            #print "elapsed_time: {}, queued_time: {}\n".format(elapsed_time / 1e9, queued_time / 1e9)
+        if profile:
+            with timed_region("ParLoop kernel"):
+                event = cl.enqueue_nd_range_kernel(_queue, fun, (thread_count,),
+                                                   (work_group_size,), g_times_l=False)
+                event.wait()
+        else:
+                event = cl.enqueue_nd_range_kernel(_queue, fun, (thread_count,),
+                                                   (work_group_size,), g_times_l=False)
+                event.wait()
 
 
 class ParLoop(device.ParLoop):
@@ -768,7 +770,7 @@ class ParLoop(device.ParLoop):
                     if configuration['dbg']:
                         from IPython import embed
                         embed()
-                    fun(int(thread_count), int(threads_per_block), *args)
+                    fun(self._kernel.name == "form_cell_integral_0_otherwise", int(thread_count), int(threads_per_block), *args)
                     block_offset += blocks_per_grid
         else:
             conf['warpsize'] = _warpsize
@@ -781,7 +783,7 @@ class ParLoop(device.ParLoop):
             if conf['subset']:
                 part.set._allocate_device()
                 args.append(part.set._device_data.data)
-            fun(conf['thread_count'], conf['work_group_size'], *args)
+            fun(False, conf['thread_count'], conf['work_group_size'], *args)
 
         # mark !READ data as dirty
         for arg in self.args:
