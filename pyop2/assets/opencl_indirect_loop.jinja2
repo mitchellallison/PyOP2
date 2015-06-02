@@ -59,7 +59,6 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 {%- macro color_reduction(arg) -%}
 for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
     {%- if(arg._is_INC) %}
-    printf("i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] = %d", i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size]);
     {{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}] += {{ arg._local_name() }}[i_2];
     {%- elif(arg._is_MIN) %}
     {{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {(arg._which_indirect}}*set_size] * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
@@ -302,13 +301,7 @@ void {{ parloop._stub_name }}(
             {{ matrix_insert() }}
         {% endif %}
       }
-      {%- if configuration['dbg'] %}
-      //printf("thread %d of %d is waiting at the barrier\n", get_local_id(0), get_local_size(0));
-      {%- endif %}
       barrier(CLK_LOCAL_MEM_FENCE);
-      {%- if configuration['dbg'] %}
-      //printf("thread %d is past the barrier\n", get_local_id(0));
-      {%- endif %}
     }
   }
 {%- else %}

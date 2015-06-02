@@ -584,10 +584,6 @@ class ParLoop(device.ParLoop):
         return list(uniquify(m for arg in self.args if arg._is_mat for m in arg.map))
 
     @property
-    def _requires_coloring(self):
-        return not self.is_layered and super(device.ParLoop, self)._requires_coloring
-
-    @property
     def _requires_matrix_coloring(self):
         """Direct code generation to follow colored execution for global
         matrix insertion."""
