@@ -184,10 +184,9 @@ cdef class _Plan:
                 # intervals and creating an inverse map from these values.
                 else:
                     # Store vertical offsets for each index
-                    with timed_region("Offsets"):
-                        for i, m in enumerate(staged_values):
-                            for j, val in enumerate(m):
-                                offsets[val] = map.offset[j] if map.offset != None else 0
+                    for i, m in enumerate(staged_values):
+                        for j, val in enumerate(m):
+                            offsets[val] = map.offset[j] if map.offset != None else 0
 
                     ind_intervals = []
                     cum_interval_len = [0]
@@ -197,56 +196,53 @@ cdef class _Plan:
                     for i, ind in enumerate(inds[dat, map, pi]):
                         # Iterate through the intervals while ind is not within
                         # the bounds.
-                        with timed_region("Linear search"):
-                            while curr_interval < len(ind_intervals) and ind >= ind_intervals[curr_interval][1]:
-                                curr_interval += 1
+                        while curr_interval < len(ind_intervals) and ind >= ind_intervals[curr_interval][1]:
+                            curr_interval += 1
                         # ind is within the interval, so extend the interval to account for the layers from ind.
-                        with timed_region("Extend"):
-                            if curr_interval < len(ind_intervals) and ind < ind_intervals[curr_interval][1]:
-                                ind_intervals[curr_interval][1] = max(ind + offsets[ind] * (extruded_layers - 1) + 1, ind_intervals[curr_interval][1])
-                            # ind is outside the interval, so create a new
-                            # interval. Append an element to the cumulative length.
-                            else:
-                                ind_intervals.append([ind, ind + offsets[ind] * (extruded_layers - 1) + 1])
-                                cum_interval_len.append(0)
-                            # Extend the cumulative interval lengths to account for
-                            # the index.
-                            cum_interval_len[curr_interval + 1] = cum_interval_len[curr_interval] + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0])
+                        if curr_interval < len(ind_intervals) and ind < ind_intervals[curr_interval][1]:
+                            ind_intervals[curr_interval][1] = max(ind + offsets[ind] * (extruded_layers - 1) + 1, ind_intervals[curr_interval][1])
+                        # ind is outside the interval, so create a new
+                        # interval. Append an element to the cumulative length.
+                        else:
+                            ind_intervals.append([ind, ind + offsets[ind] * (extruded_layers - 1) + 1])
+                            cum_interval_len.append(0)
+                        # Extend the cumulative interval lengths to account for
+                        # the index.
+                        cum_interval_len[curr_interval + 1] = cum_interval_len[curr_interval] + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0])
 
                     if configuration['dbg']:
                         print "cum_interval_len: {}\n".format(cum_interval_len)
                         print "ind_intervals: {}\n".format(ind_intervals)
 
-                    with timed_region("Inverse map"):
-                        # Calculate inverse map.
-                        inv = []
-                        for _, arr in enumerate(staged_values):
-                            # Perform a binary search through the intervals to
-                            # find the interval (and its index) which the value
-                            # exists in. If the next value in staged_values is larger
-                            # than the previous, retain the left pivot
-                            # as an optimisation.
-                            left = 0
-                            prev = -1
-                            for _, val in enumerate(arr):
-                                if val < prev:
-                                    left = 0
-                                prev = val
-                                right = len(ind_intervals) - 1
-                                while True:
-                                    i = ((right + left) / 2)
-                                    if val < ind_intervals[i][0]:
-                                        right = i
-                                    elif val >= ind_intervals[i][1]:
-                                        left = i + 1
-                                    else:
-                                        # Append the current cumulative length plus
-                                        # the difference between the beginning of
-                                        # the current interval and val.
-                                        inv.append(cum_interval_len[i] + val - ind_intervals[i][0])
-                                        break
+                    # Calculate inverse map.
+                    inv = []
+                    for _, arr in enumerate(staged_values):
+                        # Perform a binary search through the intervals to
+                        # find the interval (and its index) which the value
+                        # exists in. If the next value in staged_values is larger
+                        # than the previous, retain the left pivot
+                        # as an optimisation.
+                        left = 0
+                        prev = -1
+                        for _, val in enumerate(arr):
+                            if val < prev:
+                                left = 0
+                            prev = val
+                            right = len(ind_intervals) - 1
+                            while True:
+                                i = ((right + left) / 2)
+                                if val < ind_intervals[i][0]:
+                                    right = i
+                                elif val >= ind_intervals[i][1]:
+                                    left = i + 1
+                                else:
+                                    # Append the current cumulative length plus
+                                    # the difference between the beginning of
+                                    # the current interval and val.
+                                    inv.append(cum_interval_len[i] + val - ind_intervals[i][0])
+                                    break
 
-                        inv = numpy.array(inv)
+                    inv = numpy.array(inv)
 
                     # Set the size to be the total cumulative length
                     sizes[dat, map, pi] = cum_interval_len[-1]
@@ -313,60 +309,59 @@ cdef class _Plan:
         # and so on.
         # ind_map:          [0, 1, 11, 12, 22, 23, 33, 34]
         # base_layer_offset [0, 11, 11, 22, 22, 33, 33, 33, 44]
-        with timed_region("base_layer_offset calculation"):
-            base_layer_offsets_t = None
-            if extruded_layers is not None:
-                base_layer_offsets = {}
-                if configuration['dbg']:
-                    print "############### LAYERS: {} ############".format(extruded_layers)
-                ind_offset = 0
-                map_offset = 0
-                for dat, map in d.iterkeys():
-                    for pi in range(self._nblocks):
-                        if configuration['dbg']:
-                            print "dat: {}, map: {}, pi: {}".format(dat, map, pi)
-                            print "ind_intervals: {}".format(intervals[dat, map, pi])
-                            print "ind_offset: {}, len(inds[dat, map, pi]): {}".format(ind_offset, len(inds[dat, map, pi]))
-                            print "sizes[dat, map, pi]: {}".format(sizes[dat, map, pi])
-                            print "self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])]: {}".format(self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])])
-                        ind_intervals = intervals[dat, map, pi]
-                        base_layer_offset = [0]
-                        curr_interval = 0
-                        # Keep track of the visited intervals.
-                        visited_intervals = [False] * len(ind_intervals)
-                        # Iterate through the intervals of the ind map.
-                        for i, ind in enumerate(self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])]):
-                            prev = base_layer_offset[-1]
-                            # Locate the appropriate interval
-                            while ind >= ind_intervals[curr_interval][1]:
-                                #if configuration['dbg']:
-                                #    print "Finding interval for ind: {}, curr_interval: {}, bounds: {}".format(ind, curr_interval, ind_intervals[curr_interval])
-                                curr_interval += 1
-                            # If we have visited the interval before, do not stage
-                            # more data. Instead, append the previous value.
-                            if visited_intervals[curr_interval]:
-                                #if configuration['dbg']:
-                                #    print "Visited, appending prev: {}".format(prev)
-                                base_layer_offset.append(prev)
-                            # If we haven't yet visited the interval, append the
-                            # interval length.
-                            else:
-                                #if configuration['dbg']:
-                                #    print "Not visited, appending interval len"
-                                base_layer_offset.append(prev + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0]))
-                                visited_intervals[curr_interval] = True
-                        # Update the index into the ind_map
-                        ind_offset += len(inds[dat, map, pi])
+        base_layer_offsets_t = None
+        if extruded_layers is not None:
+            base_layer_offsets = {}
+            if configuration['dbg']:
+                print "############### LAYERS: {} ############".format(extruded_layers)
+            ind_offset = 0
+            map_offset = 0
+            for dat, map in d.iterkeys():
+                for pi in range(self._nblocks):
+                    if configuration['dbg']:
+                        print "dat: {}, map: {}, pi: {}".format(dat, map, pi)
+                        print "ind_intervals: {}".format(intervals[dat, map, pi])
+                        print "ind_offset: {}, len(inds[dat, map, pi]): {}".format(ind_offset, len(inds[dat, map, pi]))
+                        print "sizes[dat, map, pi]: {}".format(sizes[dat, map, pi])
+                        print "self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])]: {}".format(self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])])
+                    ind_intervals = intervals[dat, map, pi]
+                    base_layer_offset = [0]
+                    curr_interval = 0
+                    # Keep track of the visited intervals.
+                    visited_intervals = [False] * len(ind_intervals)
+                    # Iterate through the intervals of the ind map.
+                    for i, ind in enumerate(self._ind_map[ind_offset:ind_offset + len(inds[dat, map, pi])]):
+                        prev = base_layer_offset[-1]
+                        # Locate the appropriate interval
+                        while ind >= ind_intervals[curr_interval][1]:
+                            #if configuration['dbg']:
+                            #    print "Finding interval for ind: {}, curr_interval: {}, bounds: {}".format(ind, curr_interval, ind_intervals[curr_interval])
+                            curr_interval += 1
+                        # If we have visited the interval before, do not stage
+                        # more data. Instead, append the previous value.
+                        if visited_intervals[curr_interval]:
+                            #if configuration['dbg']:
+                            #    print "Visited, appending prev: {}".format(prev)
+                            base_layer_offset.append(prev)
+                        # If we haven't yet visited the interval, append the
+                        # interval length.
+                        else:
+                            #if configuration['dbg']:
+                            #    print "Not visited, appending interval len"
+                            base_layer_offset.append(prev + (ind_intervals[curr_interval][1] - ind_intervals[curr_interval][0]))
+                            visited_intervals[curr_interval] = True
+                    # Update the index into the ind_map
+                    ind_offset += len(inds[dat, map, pi])
 
-                        if configuration['dbg']:
-                            print "base_layer_offset: {}".format(base_layer_offset)
+                    if configuration['dbg']:
+                        print "base_layer_offset: {}".format(base_layer_offset)
 
-                        base_layer_offsets[dat, map, pi] = base_layer_offset
-                    map_offset += map.values.size
-                    ind_offset = map_offset
-                base_layer_offsets_t = tuple(base_layer_offsets[dat, map, pi]
-                                             for pi in range(self._nblocks)
-                                             for dat, map in d.iterkeys())
+                    base_layer_offsets[dat, map, pi] = base_layer_offset
+                map_offset += map.values.size
+                ind_offset = map_offset
+            base_layer_offsets_t = tuple(base_layer_offsets[dat, map, pi]
+                                         for pi in range(self._nblocks)
+                                         for dat, map in d.iterkeys())
         self._base_layer_offsets = numpy.concatenate(base_layer_offsets_t).astype(numpy.int32) if base_layer_offsets_t is not None else numpy.array([], dtype=numpy.int32)
 
         def off_iter():
