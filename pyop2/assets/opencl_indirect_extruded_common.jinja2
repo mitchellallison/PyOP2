@@ -22,13 +22,13 @@ for (i_1 = 0; i_1 < {{ arg._base_layer_size_name}} * {{ arg.data.cdim }}; i_1++)
   int layer_count = {{ arg._base_layer_offset_name }}[index + 1] - {{ arg._base_layer_offset_name }}[index];
   for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
   {%- if(arg._is_INC) -%}
-    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}];
+    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}];
   {%- elif(arg._is_MAX) -%}
-    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = max({{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}], {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}]);
+    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] = max({{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}], {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}]);
   {%- elif(arg._is_MIN) -%}
-    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = min({{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}], {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}]);
+    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] = min({{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}], {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}]);
   {%- elif(arg._is_WRITE) -%}
-    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}];
+    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] = {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}];
   {%- endif %}
   }
 }
@@ -70,10 +70,10 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
   {{ color_reduction(arg) | indent(8) }}
   {%- endfor %}
   {%- for arg in parloop._all_inc_vec_map_args %}
-  {{ color_reduction_vec_map(arg) | indent(8) }}
+  {{ color_reduction_vec_map(arg, parloop) | indent(8) }}
   {%- endfor %}
   {%- for arg in parloop._all_inc_itspace_dat_args %}
-  {{ color_reduction_vec_map(arg) | indent(8) }}
+  {{ color_reduction_vec_map(arg, parloop) | indent(8) }}
   {%- endfor %}
   {%- if(parloop._requires_matrix_coloring) %}
   // IterationSpace index loops ({{ parloop._it_space._extent_ranges }})
