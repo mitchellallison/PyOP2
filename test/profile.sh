@@ -10,7 +10,7 @@ else
   iterations=$5
 
   backends=(sequential openmp sequential opencl opencl)
-  profile_names=(Sequential OpenMP MPI OpenCL_CPU OpenCL_GPU)
+  profile_names=(Sequential OpenMP MPI "OpenCL CPU" "OpenCL GPU")
   machines=(pixel05 pixel05 pixel05 pixel05 graphic06)
   execution_schemes=(A B)
 
