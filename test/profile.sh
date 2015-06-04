@@ -10,7 +10,7 @@ else
   iterations=$5
 
   backends=(opencl opencl)
-  profile_names=(OpenCL_CPU OpenCL_GPU)
+  profile_names=("OpenCL CPU" "OpenCL GPU")
   machines=(pixel05 graphic06)
   execution_schemes=(C D)
 
