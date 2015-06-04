@@ -81,6 +81,9 @@ def mesh(request):
 def test_name(request):
     return request.node.name
 
+@pytest.fixture(scope='function')
+def results_name(request):
+    return re.sub("(" + "|".join(backends) + ")-", "", request.node.name)
 
 class TestOpenCLExtrusion:
 
@@ -88,7 +91,7 @@ class TestOpenCLExtrusion:
     OpenCL Extruded Mesh Tests
     """
 
-    def test_extruded_simple_kernel(self, backend, discretisation, mesh, test_name, generate_extr_data, profile, skip_lazy):
+    def test_extruded_simple_kernel(self, backend, discretisation, mesh, results_name, test_name, generate_extr_data, profile, skip_lazy):
         ((fam, deg), (vfam, vdeg)) = discretisation
 
         V = FunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg)
@@ -104,7 +107,7 @@ class TestOpenCLExtrusion:
         op2.par_loop(k, mesh.cell_set,
                      f.dat(op2.INC, V.cell_node_map()))
 
-        file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
+        file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(results_name))
         if generate_extr_data:
             numpy.save(file_name, f.dat.data)
         elif profile is not None:
@@ -113,7 +116,7 @@ class TestOpenCLExtrusion:
             print f.dat.data
             compare_results(numpy.load(file_name), f.dat.data, 0)
 
-    def test_extruded_simple_kernel_coords(self, backend, discretisation, mesh, test_name, generate_extr_data, profile, skip_lazy):
+    def test_extruded_simple_kernel_coords(self, backend, discretisation, mesh, results_name, test_name, generate_extr_data, profile, skip_lazy):
         ((fam, deg), (vfam, vdeg)) = discretisation
 
         name = "%s%dx%s%d" % (fam, deg, vfam, vdeg)
@@ -131,7 +134,7 @@ class TestOpenCLExtrusion:
         op2.par_loop(k, mesh.cell_set,
                      mesh.coordinates.dat(op2.INC, mesh.coordinates.cell_node_map()))
 
-        file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
+        file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(results_name))
         if generate_extr_data:
             numpy.save(file_name, mesh.coordinates.dat.data)
         elif profile is not None:
@@ -139,7 +142,7 @@ class TestOpenCLExtrusion:
         else:
             compare_results(numpy.load(file_name), mesh.coordinates.dat.data, 1e-14)
 
-    def test_extruded_simple_kernel_vector_function_spaces(self, backend, discretisation, mesh, test_name, generate_extr_data, profile, skip_lazy):
+    def test_extruded_simple_kernel_vector_function_spaces(self, backend, discretisation, mesh, results_name, test_name, generate_extr_data, profile, skip_lazy):
         ((fam, deg), (vfam, vdeg)) = discretisation
 
         V = VectorFunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg, dim=3)
@@ -160,7 +163,7 @@ class TestOpenCLExtrusion:
         op2.par_loop(k, mesh.cell_set,
                      f.dat(op2.INC, V.cell_node_map()))
 
-        file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
+        file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(results_name))
         if generate_extr_data:
             numpy.save(file_name, f.dat.data)
         elif profile is not None:
@@ -168,7 +171,7 @@ class TestOpenCLExtrusion:
         else:
             compare_results(numpy.load(file_name), f.dat.data, 0)
 
-    def test_extruded_rhs_assembly(self, backend, discretisation, mesh, test_name, generate_extr_data, profile, skip_lazy):
+    def test_extruded_rhs_assembly(self, backend, discretisation, mesh, results_name, test_name, generate_extr_data, profile, skip_lazy):
         ((fam, deg), (vfam, vdeg)) = discretisation
 
         V = FunctionSpace(mesh, fam, deg, vfamily=vfam, vdegree=vdeg)
@@ -176,7 +179,7 @@ class TestOpenCLExtrusion:
         rhs = v * dx
         f = assemble(rhs)
 
-        file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(test_name))
+        file_name = os.path.join(os.path.dirname(__file__), '../data/{}.npy'.format(results_name))
         if generate_extr_data:
             numpy.save(file_name, f.dat.data)
         elif profile is not None:
