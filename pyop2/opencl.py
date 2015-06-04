@@ -689,11 +689,12 @@ class ParLoop(device.ParLoop):
             _plan = Plan(part,
                          *self._unwound_args,
                          partition_size=conf['partition_size'],
+                         thread_coloring=configuration['execution_scheme'] == 0,
                          matrix_coloring=self._requires_matrix_coloring,
                          extruded_layers=extruded_layers)
             conf['local_memory_size'] = _plan.nshared
             conf['ninds'] = _plan.ninds
-            if self.is_layered:
+            if self.is_layered and configuration['execution_scheme'] == 1:
                 conf['work_group_size'] = min(_max_work_group_size,
                                               extruded_layers)
             else:
@@ -759,15 +760,16 @@ class ParLoop(device.ParLoop):
             args.append(_plan.blkmap.data)
             args.append(_plan.offset.data)
             args.append(_plan.nelems.data)
-            args.append(_plan.nthrcol.data)
-            args.append(_plan.thrcol.data)
+            if configuration['execution_scheme'] == 0:
+                args.append(_plan.nthrcol.data)
+                args.append(_plan.thrcol.data)
 
             block_offset = 0
             args.append(0)
 
             for i in range(_plan.ncolors):
                 blocks_per_grid = int(_plan.ncolblk[i])
-                if extruded_layers is not None:
+                if self.is_layered and configuration['execution_scheme'] == 1:
                     threads_per_block = min(_max_work_group_size, extruded_layers)
                 else:
                     threads_per_block = min(_max_work_group_size, conf['partition_size'])
