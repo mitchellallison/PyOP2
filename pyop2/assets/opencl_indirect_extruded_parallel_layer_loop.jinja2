@@ -1,4 +1,5 @@
 {% import 'opencl_common.jinja2' as common %}
+{% import 'opencl_indirect_extruded_common.jinja2' as extruded_common %}
 
 {%- macro header() -%}
 /* Launch configuration:
@@ -13,61 +14,6 @@
 {{ common.defines(launch) }}
 {%- endmacro -%}
 
-{%- macro stagingin(arg) -%}
-for (i_1 = 0; i_1 < {{ arg._base_layer_size_name }} * {{ arg.data.cdim }}; i_1++) {
-  int index = i_1 / {{ arg.data.cdim }};
-  int shared_offset = {{ arg._base_layer_offset_name }}[index];
-  int layer_count = {{ arg._base_layer_offset_name }}[index + 1] - {{ arg._base_layer_offset_name }}[index];
-  {%- if configuration['dbg'] %}
-  if (get_local_id(0) == 0) {
-    printf("block_id: %d, {{ arg._base_layer_offset_name }}[index]: %d, {{ arg._base_layer_offset_name }}[index + 1]: %d\n", block_id, {{ arg._base_layer_offset_name }}[index], {{ arg._base_layer_offset_name }}[index + 1]);
-    printf("block_id: %d, layer_count: %d, shared_offset: %d\n", block_id, layer_count, shared_offset);
-    printf("block_id: %d, index: %d, offset: %d, next offset: %d\n", block_id, index, shared_offset, {{ arg._base_layer_offset_name }}[index + 1]);
-    printf("block_id: %d, Size of shared: %d, Size of base: %d\n", block_id, {{ arg._size_name }}, {{ arg._base_layer_size_name }});
-  }
-  {%- endif %}
-  for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
-  {%- if configuration['dbg'] %}
-    printf("block_id: %d, Starting layer %d of %d, Index into %s: %d, value: %d\n", block_id, layer, layer_count, "{{arg._shared_name}}", i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{arg.data.cdim}}, {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}]);
-  {%- endif %}
-    {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}] = {{ arg.name }}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}];
-  {%- if configuration['dbg'] %}
-    printf("block_id: %d, Ending layer %d of %d\n", block_id, layer, layer_count);
-  {%- endif %}
-  }
-  barrier(CLK_LOCAL_MEM_FENCE);
-}
-{%- endmacro -%}
-
-{%- macro stagingout(arg) -%}
-  {{ work_group_reduction(arg) }}
-{%- endmacro -%}
-
-{%- macro populate_vec_map(arg) -%}
-// populate vec map
-{%- if(arg._is_indirect_reduction) -%}
-  {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
-{{ arg._vec_name }}[{{ i }}] = {{ arg._local_name(idx=i) }};
-  {%- endfor -%}
-{%- else -%}
-  {%- if arg._flatten %}
-    {%- for j in range(arg.data.dataset.cdim) %}
-      {%- for i in range(arg.map.arity) %}
-  {{ arg._vec_name }}[{{ j * arg.map.arity + i }}] += (offset * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }};
-{%- if configuration['dbg'] %}
-  printf("offset: %d\n", (offset * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }});
-  printf("{{ arg._vec_name }}[{{ j * arg.map.arity + i }}][0] = %f\n", {{ arg._vec_name }}[{{ j * arg.map.arity + i }}][0]);
-{%- endif %}
-      {%- endfor -%}
-    {%- endfor -%}
-  {%- else %}
-    {%- for i in range(arg.map.arity) %}
-{{ arg._vec_name }}[{{ i }}] += (offset * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }};
-    {%- endfor -%}
-  {%- endif -%}
-{%- endif -%}
-{%- endmacro -%}
-
 {%- macro staged_arg_local_variable_zeroing(arg) -%}
 for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
     {%- if (arg._is_vec_map or arg._uses_itspace) -%}
@@ -80,58 +26,6 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 }
 {%- endmacro -%}
 
-{%- macro color_reduction(arg) -%}
-for (i_2 = 0; i_2 < {{ arg.data.cdim }}; ++i_2) {
-  {%- if(arg._is_INC) -%}
-  {{ arg._shared_name }}[i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] += {{ arg._local_name() }}[i_2];
-  {%- elif(arg._is_MIN) %}
-  {{ arg._shared_name }}[i_2 + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
-  {%- elif(arg._is_MAX) %}
-  {{ arg._shared_name }}[i_2 + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer) * {{ arg.data.cdim }}] = max({{ arg._shared_name }}[i_2 + p_loc_map[i_1 + offset_b + {{arg._which_indirect}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name() }}[i_2]);
-  {%- endif %}
-}
-{%- endmacro -%}
-
-{%- macro color_reduction_vec_map(arg) -%}
-for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
-  {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
-    {%- if(arg._flatten) %}
-    {%- set offs = i // arg.map.arity %}
-    {%- else %}
-    {%- set offs = 'i_2' %}
-    {%- endif %}
-      {%- if(arg._is_INC) %}
-    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] += {{ arg._local_name(idx=i) }}[i_2];
-      {%- if configuration['dbg'] %}
-    printf("{{ arg._shared_name }}[%d] += %f\n", {{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}, {{ arg._local_name(idx=i) }}[i_2]);
-      {%- endif %}
-      {%- elif(arg._is_MIN) %}
-    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {(arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }}) * {{ arg.data.cdim }}] = min({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
-      {%- elif(arg._is_MAX) %}
-    {{ arg._shared_name }}[{{offs}} + (p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] + layer * {{ arg.map.get_offset(i) }})) * {{ arg.data.cdim }}] = max({{ arg._shared_name }}[{{offs}} + p_loc_map[i_1 + offset_b + {{arg._which_indirect + i % arg.map.arity}}*set_size] * {{ arg.data.cdim }}], {{ arg._local_name(idx=i) }}[i_2]);
-      {%- endif %}
-  {%- endfor %}
-}
-{%- endmacro -%}
-
-{%- macro work_group_reduction(arg) -%}
-for (i_1 = 0; i_1 < {{ arg._base_layer_size_name}} * {{ arg.data.cdim }}; i_1++) {
-  int index = i_1 / {{ arg.data.cdim }};
-  int shared_offset = {{ arg._base_layer_offset_name }}[index];
-  int layer_count = {{ arg._base_layer_offset_name }}[index + 1] - {{ arg._base_layer_offset_name }}[index];
-  for (int layer = get_local_id(0); layer < layer_count; layer += get_local_size(0)) {
-  {%- if(arg._is_INC) -%}
-    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] += {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}];
-  {%- elif(arg._is_MAX) -%}
-    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] = max({{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}], {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}]);
-  {%- elif(arg._is_MIN) -%}
-    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] = min({{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}], {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}]);
-  {%- elif(arg._is_WRITE) -%}
-    {{arg.name}}[i_1 % {{ arg.data.cdim }} + ({{ arg._map_name }}[index] + layer) * {{ arg.data.cdim }}] = {{ arg._shared_name }}[i_1 % {{ arg.data.cdim }} + (shared_offset + layer) * {{ arg.data.cdim }}];
-  {%- endif %}
-  }
-}
-{%- endmacro -%}
 
 {%- macro global_reduction_local_zeroing(arg) -%}
 for (i_1 = 0; i_1 < {{ arg.data.cdim }}; ++i_1) {
@@ -299,7 +193,7 @@ void {{ parloop._stub_name }}(
 {% if(parloop._unique_read_or_rw_indirect_dat_args) -%}
   // staging in of indirect dats
   {% for arg in parloop._unique_read_or_rw_indirect_dat_args %}
-  {{ stagingin(arg) }}
+  {{ extruded_common.stagingin(arg) }}
   {% endfor %}
 
   barrier(CLK_LOCAL_MEM_FENCE);
@@ -323,17 +217,11 @@ void {{ parloop._stub_name }}(
 {%- if(parloop._requires_coloring) %}
   for (i_1 = 0; i_1 < active_threads_count; i_1++) {
     for (int red_black_color = 0; red_black_color < 2; red_black_color++) {
-    {{ extruded_vec_setup() }}
-    {%- if configuration['dbg'] %}
-    //printf("ceiling: %d\n", active_threads_count_ceiling);
-    {%- endif %}
+    {{ extruded_common.extruded_vec_setup(parloop) }}
     for (int layer = (get_local_id(0) * 2) + red_black_color, thread_block_height = 0; thread_block_height < {{ parloop.layer_arg[0] - 1 }}; layer += get_local_size(0) * 2, thread_block_height += get_local_size(0) * 2) {
       color_2 = -1;
       int offset = min(layer, ((int)get_local_size(0) * 2));
       if (layer < {{ parloop.layer_arg[0] - 1 }}) {
-    {%- if configuration['dbg'] %}
-      printf("offset: %d, i_1: %d\n", offset, i_1);
-    {%- endif %}
       {%- for arg in parloop._all_inc_indirect_dat_args %}
       {{ staged_arg_local_variable_zeroing(arg) | indent(6) }}
       {%- endfor %}
@@ -344,22 +232,7 @@ void {{ parloop._stub_name }}(
     for (color_1 = 0; color_1 < colors_count; ++color_1) {
       // should there be a if + barrier pattern for each indirect reduction argument ?
       if (color_2 == color_1) {
-        {%- for arg in parloop._all_inc_non_vec_map_indirect_dat_args %}
-        {{ color_reduction(arg) | indent(8) }}
-        {%- endfor %}
-        {%- for arg in parloop._all_inc_vec_map_args %}
-        {{ color_reduction_vec_map(arg) | indent(8) }}
-        {%- endfor %}
-        {%- for arg in parloop._all_inc_itspace_dat_args %}
-        {{ color_reduction_vec_map(arg) | indent(8) }}
-        {%- endfor %}
-        {%- if(parloop._requires_matrix_coloring) %}
-        // IterationSpace index loops ({{ parloop._it_space._extent_ranges }})
-        {%- for it in parloop._it_space._extent_ranges %}
-        for (int idx_{{ loop.index0 }} = 0; idx_{{ loop.index0 }} < {{ it }}; ++idx_{{ loop.index0 }})
-        {%- endfor %}
-            {{ matrix_insert() }}
-        {% endif %}
+        {{ extruded_common.reduction_stage(parloop) }}
       }
       {%- if configuration['dbg'] %}
       //printf("thread %d of %d is waiting at the barrier\n", get_local_id(0), get_local_size(0));
@@ -375,7 +248,7 @@ void {{ parloop._stub_name }}(
 {%- else %}
     for (i_1 = 0; i_1 < active_threads_count; i_1++) {
     for (int red_black_color = 0; red_black_color < 2; red_black_color++) {
-    {{ extruded_vec_setup() }}
+    {{ extruded_common.extruded_vec_setup(parloop) }}
     for (int layer = (get_local_id(0) * 2) + red_black_color; layer < {{ parloop.layer_arg[0] - 1}}; layer += get_local_size(0) * 2) {
       int offset = min(layer, ((int)get_local_size(0) * 2));
     {%- if configuration['dbg'] %}
@@ -390,7 +263,7 @@ void {{ parloop._stub_name }}(
 
 {%- if(parloop._unique_inc_indirect_dat_args) %}
   {%- for arg in parloop._unique_inc_indirect_dat_args %}
-  {{ work_group_reduction(arg) | indent(2) }}
+  {{ extruded_common.work_group_reduction(arg) | indent(2) }}
   {%- endfor %}
 {%- endif %}
 
@@ -398,7 +271,7 @@ void {{ parloop._stub_name }}(
   // staging out indirect dats
   barrier(CLK_LOCAL_MEM_FENCE);
   {% for arg in parloop._unique_write_or_rw_indirect_dat_args %}
-  {{ stagingout(arg) | indent(2) }}
+  {{ extruded_common.stagingout(arg) | indent(2) }}
   {%- endfor %}
 {%- endif %}
 
@@ -412,28 +285,6 @@ void {{ parloop._stub_name }}(
 }
 {%- endmacro -%}
 
-{%- macro extruded_vec_setup() -%}
-    {% for arg in parloop._unique_dat_args if(arg._is_vec_map or arg._uses_itspace) %}
-      {%- if(arg._is_indirect_reduction) -%}
-        {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
-      {{ arg._vec_name }}[{{ i }}] = {{ arg._local_name(idx=i) }};
-        {%- endfor -%}
-      {%- else -%}
-        {%- if arg._flatten %}
-          {%- for j in range(arg.data.dataset.cdim) %}
-            {%- for i in range(arg.map.arity) %}
-              {{ arg._vec_name }}[{{ j * arg.map.arity + i }}] = {{ arg._shared_name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }} + {{ j }};
-            {%- endfor -%}
-          {%- endfor -%}
-        {%- else %}
-          {%- for i in range(arg.map.arity) %}
-      {{ arg._vec_name }}[{{ i }}] = {{ arg._shared_name }} + p_loc_map[i_1 + {{arg._which_indirect + i}}*set_size + offset_b] * {{ arg.data.cdim }};
-          {%- endfor -%}
-        {%- endif -%}
-      {%- endif -%}
-    {%- endfor %}
-{%- endmacro -%}
-  
 
 {#- rewrite: do recursive template -#}
 {%- macro matrix_kernel_call() -%}
@@ -498,7 +349,7 @@ for (int i{{ loop.index0 }}=0; i{{ loop.index0 }}<{{ dim }}; ++i{{ loop.index0 }
 
 {%- macro kernel_call() -%}
 {% for arg in parloop._unique_dat_args if(arg._is_vec_map or arg._uses_itspace) %}
-  {{ populate_vec_map(arg) }}
+  {{ extruded_common.populate_vec_map(arg, parloop) }}
 {% endfor %}
 {% if(parloop._has_itspace) %}
 {{ matrix_kernel_call() }}
