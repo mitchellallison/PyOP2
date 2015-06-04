@@ -214,52 +214,23 @@ void {{ parloop._stub_name }}(
   {% endfor %}
 {% endif %}
 
-{%- if(parloop._requires_coloring) %}
-  for (i_1 = 0; i_1 < active_threads_count; i_1++) {
-    for (int red_black_color = 0; red_black_color < 2; red_black_color++) {
-    {{ extruded_common.extruded_vec_setup(parloop) }}
-    for (int layer = (get_local_id(0) * 2) + red_black_color, thread_block_height = 0; thread_block_height < {{ parloop.layer_arg[0] - 1 }}; layer += get_local_size(0) * 2, thread_block_height += get_local_size(0) * 2) {
-      color_2 = -1;
-      int offset = min(layer, ((int)get_local_size(0) * 2));
-      if (layer < {{ parloop.layer_arg[0] - 1 }}) {
-      {%- for arg in parloop._all_inc_indirect_dat_args %}
-      {{ staged_arg_local_variable_zeroing(arg) | indent(6) }}
-      {%- endfor %}
+for (i_1 = 0; i_1 < active_threads_count; i_1++) {
+  {{ extruded_common.extruded_vec_setup(parloop) }}
+  for (int layer = get_local_id(0); layer < {{ parloop.layer_arg[0] - 1 }}; layer += get_local_size(0)) {
+    int offset = min(layer, ((int)get_local_size(0) * 2));
+    {%- for arg in parloop._all_inc_indirect_dat_args %}
+    {{ staged_arg_local_variable_zeroing(arg) | indent(6) }}
+    {%- endfor %}
 
-      {{ kernel_call() | indent(6) }}
-      color_2 = p_thrcol[i_1 + offset_b];
-    }
-    for (color_1 = 0; color_1 < colors_count; ++color_1) {
-      // should there be a if + barrier pattern for each indirect reduction argument ?
-      if (color_2 == color_1) {
+    {{ kernel_call() | indent(6) }}
+    for (int red_black_color = 0; red_black_color < min(2, {{ parloop.layer_arg[0] - 1 }}); red_black_color++) {
+      if (layer % 2 == red_black_color) {
         {{ extruded_common.reduction_stage(parloop) }}
       }
-      {%- if configuration['dbg'] %}
-      //printf("thread %d of %d is waiting at the barrier\n", get_local_id(0), get_local_size(0));
-      {%- endif %}
       barrier(CLK_LOCAL_MEM_FENCE);
-      {%- if configuration['dbg'] %}
-      //printf("thread %d is past the barrier\n", get_local_id(0));
-      {%- endif %}
-    }
-    }
     }
   }
-{%- else %}
-    for (i_1 = 0; i_1 < active_threads_count; i_1++) {
-    for (int red_black_color = 0; red_black_color < 2; red_black_color++) {
-    {{ extruded_common.extruded_vec_setup(parloop) }}
-    for (int layer = (get_local_id(0) * 2) + red_black_color; layer < {{ parloop.layer_arg[0] - 1}}; layer += get_local_size(0) * 2) {
-      int offset = min(layer, ((int)get_local_size(0) * 2));
-    {%- if configuration['dbg'] %}
-      printf("offset: %d, i_1: %d\n", offset, i_1);
-    {%- endif %}
-    {{ kernel_call() | indent(6) }}
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-    }
-  }
-{%- endif %}
+}
 
 {%- if(parloop._unique_inc_indirect_dat_args) %}
   {%- for arg in parloop._unique_inc_indirect_dat_args %}

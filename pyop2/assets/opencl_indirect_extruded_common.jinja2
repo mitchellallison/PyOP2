@@ -85,12 +85,7 @@ for (i_2 = 0; i_2 < {{ arg.data.cdim if not arg._flatten else 1 }}; ++i_2) {
 {%- endmacro -%}
 
 {%- macro populate_vec_map(arg, parloop) -%}
-// populate vec map
-{%- if(arg._is_indirect_reduction) -%}
-  {%- for i in range(parloop._it_space._extent_ranges[0] if arg._flatten else arg.map.arity) %}
-{{ arg._vec_name }}[{{ i }}] = {{ arg._local_name(idx=i) }};
-  {%- endfor -%}
-{%- else -%}
+{%- if not arg._is_indirect_reduction -%}
   {%- if arg._flatten %}
     {%- for j in range(arg.data.dataset.cdim) %}
       {%- for i in range(arg.map.arity) %}
