@@ -57,7 +57,7 @@ for disc_1 in discretisations:
 
         for i, execution_scheme in enumerate(execution_schemes):
             plot = execution_schemes_parloop_df[i].transpose().plot(kind='line', colormap='hsv')
-            plot.set_xlabel('Layer Count')
+            plot.set_xlabel('Partition size (KB)')
             plot.set_xscale('log', basex=2)
             plot.set_ylabel('Time (Seconds)')
             figure = plot.get_figure()
@@ -65,7 +65,7 @@ for disc_1 in discretisations:
             figure.savefig(os.path.join(graph_dir, "{}-{}-{}-Scheme_{}-parloop-partition-size-increasing-layers.pdf".format(test_name, discretisation, mesh_size, execution_scheme)))
 
             plot = execution_schemes_plan_df[i].transpose().plot(kind='line', colormap='hsv')
-            plot.set_xlabel('Layer Count')
+            plot.set_xlabel('Partition size (KB)')
             plot.set_xscale('log', basex=2)
             plot.set_ylabel('Time (Seconds)')
             figure = plot.get_figure()
