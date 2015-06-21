@@ -7,13 +7,9 @@ import pandas
 
 
 def plot(df, backend):
-    plot = df.transpose().plot(kind='bar', stacked=True, colormap='gist_ncar')
-    plot.set_xlabel('Discretisation')
-    plot.set_ylabel('Time (Seconds)')
-    handles, labels = plot.get_legend_handles_labels()
-    lgd = plot.legend(handles, labels, loc=2, bbox_to_anchor=(1.05, 1))
-    figure = plot.get_figure()
-    figure.savefig(os.path.join(graph_dir, "{}-{}-{}-runtime-stacked.pdf".format(test_name, mesh_size, backend)), bbox_extra_artists=(lgd,), bbox_inches='tight')
+    with open(os.path.join(graph_dir, "{}-{}-{}-runtime-stacked-table.tex".format(test_name, mesh_size, backend)), 'w') as f:
+        latex = df.to_latex()
+        f.write(latex)
 
 if len(sys.argv) != 5:
     print "Usage: {} FILE_DIR TEST_NAME MESH-SIZE OUTPUT_DIR.".format(sys.argv[0])

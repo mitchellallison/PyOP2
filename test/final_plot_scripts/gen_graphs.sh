@@ -14,3 +14,5 @@ output_dir=$3
 ./plot_runtime_stacked.py $profile_dir test_extruded_rhs_assembly square $output_dir
 ./plot_runtime_stacked_preliminary.py $profile_dir test_extruded_rhs_assembly square $output_dir
 ./plot_parloop_layer_partition_size.py $partition_dir test_extruded_rhs_assembly square $output_dir
+./plot_parloop_maximum_valuable_bandwidth.py $profile_dir test_extruded_rhs_assembly square $output_dir
+./plot_parloop_gflops.py $profile_dir test_extruded_rhs_assembly square $output_dir

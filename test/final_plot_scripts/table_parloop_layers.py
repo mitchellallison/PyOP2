@@ -42,17 +42,6 @@ for disc_1 in discretisations:
             except IOError:
                 timings.extend([float('NaN'), float('NaN')])
 
-            #openmp_file_name = "{}[openmp-greedy-{}-{}-{}]".format(test_name, discretisation, mesh_size, layer)
-            #openmp_file_path = os.path.join(file_dir, openmp_file_name)
-            #try:
-            #    openmp_data = pandas.read_csv(open(openmp_file_path))
-            #    profile_data = openmp_data.groupby('Profile')
-            #    parloop_profile_data = profile_data['Assembly kernel']
-            #    parloop_min = parloop_profile_data.min()
-            #    timings.append(parloop_min[backends[2]])
-            #except IOError:
-            #    timings.append(float('NaN'))
-
             opencl_file_name = "{}[opencl-greedy-{}-{}-{}]".format(test_name, discretisation, mesh_size, layer)
             opencl_file_path = os.path.join(file_dir, opencl_file_name)
             try:
@@ -66,10 +55,6 @@ for disc_1 in discretisations:
 
             df.loc[layer] = timings
 
-        plot = df.plot(kind='line', colormap='gist_rainbow', marker='.')
-        plot.set_xlabel('Layer Count')
-        plot.set_ylabel('Time (Seconds)')
-        plot.set_ylim([0, 0.3])
-        figure = plot.get_figure()
-        figure.tight_layout()
-        figure.savefig(os.path.join(graph_dir, "{}-{}-{}-parloop-increasing-layers.pdf".format(test_name, discretisation, mesh_size)))
+        with open(os.path.join(graph_dir, "{}-{}-{}-parloop-increasing-layers-table.tex".format(test_name, discretisation, mesh_size)), 'w') as f:
+            latex = df.to_latex()
+            f.write(latex)

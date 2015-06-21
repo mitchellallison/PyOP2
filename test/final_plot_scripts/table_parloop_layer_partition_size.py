@@ -56,18 +56,10 @@ for disc_1 in discretisations:
                     pass
 
         for i, execution_scheme in enumerate(execution_schemes):
-            plot = execution_schemes_parloop_df[i].transpose().plot(kind='line', colormap='gist_rainbow', marker='.')
-            plot.set_xlabel('Partition size (KB)')
-            plot.set_xscale('log', basex=2)
-            plot.set_ylabel('Time (Seconds)')
-            figure = plot.get_figure()
-            figure.tight_layout()
-            figure.savefig(os.path.join(graph_dir, "{}-{}-{}-Scheme_{}-parloop-partition-size-increasing-layers.pdf".format(test_name, discretisation, mesh_size, execution_scheme)))
+            with open(os.path.join(graph_dir, "{}-{}-{}-Scheme_{}-parloop-partition-size-increasing-layers-table.tex".format(test_name, discretisation, mesh_size, execution_scheme)), 'w') as f:
+                latex = execution_schemes_parloop_df[i].transpose().to_latex()
+                f.write(latex)
 
-            plot = execution_schemes_plan_df[i].transpose().plot(kind='line', colormap='gist_rainbow', marker='.')
-            plot.set_xlabel('Partition size (KB)')
-            plot.set_xscale('log', basex=2)
-            plot.set_ylabel('Time (Seconds)')
-            figure = plot.get_figure()
-            figure.tight_layout()
-            figure.savefig(os.path.join(graph_dir, "{}-{}-{}-Scheme_{}-plan-partition-size-increasing-layers.pdf".format(test_name, discretisation, mesh_size, execution_scheme)))
+            with open(os.path.join(graph_dir, "{}-{}-{}-Scheme_{}-plan-partition-size-increasing-layers-table.tex".format(test_name, discretisation, mesh_size, execution_scheme)), 'w') as f:
+                latex = execution_schemes_plan_df[i].transpose().to_latex()
+                f.write(latex)

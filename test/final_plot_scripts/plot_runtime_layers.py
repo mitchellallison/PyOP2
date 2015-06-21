@@ -53,7 +53,7 @@ for disc_1 in discretisations:
 
             df.loc[layer] = timings
 
-        plot = df.plot(kind='line', colormap='hsv')
+        plot = df.plot(kind='line', colormap='gist_rainbow', marker='.')
         plot.set_xlabel('Layer Count')
         plot.set_ylabel('Time (Seconds)')
         plot.set_yscale('log')

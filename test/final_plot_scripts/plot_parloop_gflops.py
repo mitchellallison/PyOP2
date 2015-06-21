@@ -19,36 +19,31 @@ graph_dir = os.path.abspath(sys.argv[4])
 
 discretisations = ["CG1", "DG1"]
 
-backends = ["'Sequential'", "'MPI'",
-            "'OpenCL CPU Scheme A'", "'OpenCL CPU Scheme B'",
-            "'OpenCL GPU Scheme A'", "'OpenCL GPU Scheme B'"]
+backends = ["'OpenCL GPU Scheme A'", "'OpenCL GPU Scheme B'", "'OpenCL GPU Scheme C'", "'OpenCL GPU Scheme D'"]
 backend_headers = map(lambda backend: backend[1:-1], backends)
 
 df = pandas.DataFrame(columns=backend_headers)
 
+ops_per_kernel = 78
+dofs_per_cell = 6
+num_cells = 4000000
+# Total flops = number of ops per kernel for each dof, multiplied by the number of dofs
+total_flops = dofs_per_cell * num_cells * ops_per_kernel
+
 for disc_1 in discretisations:
     for disc_2 in discretisations:
         discretisation = "{}-{}".format(disc_1, disc_2)
-        for layer in [1, 2, 4, 8, 16, 32, 64, 96, 128]:#, 160, 192, 224, 256]:
+        for i, layer in enumerate([1, 2, 4, 8, 16, 32, 64, 96, 128, 160, 192, 224, 256]):
             timings = []
-            sequential_file_name = "{}[sequential-greedy-{}-{}-{}]".format(test_name, discretisation, mesh_size, layer)
-            sequential_file_path = os.path.join(file_dir, sequential_file_name)
-            try:
-                sequential_data = pandas.read_csv(open(sequential_file_path))
-                profile_data = sequential_data.groupby('Profile')
-                parloop_min = profile_data.min().sum(axis=1)
-                timings.append(parloop_min[backends[0]])
-                timings.append(parloop_min[["'MPI_{}'".format(i) for i in range(8)]].min())
-            except IOError:
-                timings.extend([float('NaN'), float('NaN')])
 
             opencl_file_name = "{}[opencl-greedy-{}-{}-{}]".format(test_name, discretisation, mesh_size, layer)
             opencl_file_path = os.path.join(file_dir, opencl_file_name)
             try:
                 opencl_data = pandas.read_csv(open(opencl_file_path))
                 profile_data = opencl_data.groupby('Profile')
-                parloop_min = profile_data.min().sum(axis=1)
-                timings.extend(parloop_min[backends[2:]])
+                parloop_profile_data = profile_data['Assembly kernel']
+                parloop_min = parloop_profile_data.min()
+                timings.extend(map(lambda runtime: (total_flops / runtime) / 2**30, parloop_min[backends]))
             except IOError:
                 timings.extend([float('NaN') for i in range(4)])
 
@@ -56,8 +51,7 @@ for disc_1 in discretisations:
 
         plot = df.plot(kind='line', colormap='gist_rainbow', marker='.')
         plot.set_xlabel('Layer Count')
-        plot.set_ylabel('Time (Seconds)')
-        plot.set_yscale('log')
+        plot.set_ylabel('Floating Point Operations Per Second (GFLOPS)')
         figure = plot.get_figure()
         figure.tight_layout()
-        figure.savefig(os.path.join(graph_dir, "{}-{}-{}-runtime-preliminary-increasing-layers.pdf".format(test_name, discretisation, mesh_size)))
+        figure.savefig(os.path.join(graph_dir, "{}-{}-{}-parloop-gflops-increasing-layers.pdf".format(test_name, discretisation, mesh_size)))
